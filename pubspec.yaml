@@ -58,7 +58,7 @@ flutter:
   uses-material-design: true
 
   assets:
-      - assets/images/OpenEar_logo.png
+       - assets/images/OpenEar_logo.jpg
       
 
   # To add assets to your application, add an assets section, like this:

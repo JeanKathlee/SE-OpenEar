@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'welcome_screen.dart';
+
 void main() {
   runApp(OpenEarLoginApp());
 }
@@ -10,8 +11,8 @@ class OpenEarLoginApp extends StatelessWidget {
     return MaterialApp(
       title: 'OpenEar Login',
       theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFF384A5F), 
-        primaryColor: const Color(0xFF90AFC5), 
+        scaffoldBackgroundColor: const Color(0xFF384A5F),
+        primaryColor: const Color(0xFF90AFC5),
         textTheme: const TextTheme(
           bodyLarge: TextStyle(fontSize: 22.0, color: Colors.white),
           bodyMedium: TextStyle(fontSize: 18.0, color: Colors.white70),
@@ -39,30 +40,30 @@ class LoginScreen extends StatelessWidget {
               children: [
                 // Logo
                 Container(
-                   padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.8), // soft white border
-                        width: 3, // thickness of the border
-                      ),
-                      borderRadius: BorderRadius.circular(16), // rounded edges
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.8), // soft white border
+                      width: 3, // thickness of the border
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        'assets/images/openear_logo.png',
-                        height: 130,
-                        fit: BoxFit.cover,
+                    borderRadius: BorderRadius.circular(16), // rounded edges
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
                       ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      'assets/images/OpenEar_logo.jpg',
+                      height: 130,
+                      fit: BoxFit.cover,
                     ),
                   ),
+                ),
                 const SizedBox(height: 24),
 
                 // App title
@@ -83,7 +84,10 @@ class LoginScreen extends StatelessWidget {
                   style: const TextStyle(fontSize: 22, color: Colors.black),
                   decoration: InputDecoration(
                     labelText: 'Username',
-                    labelStyle: const TextStyle(fontSize: 20, color: Colors.black54),
+                    labelStyle: const TextStyle(
+                      fontSize: 20,
+                      color: Colors.black54,
+                    ),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -99,7 +103,10 @@ class LoginScreen extends StatelessWidget {
                   style: const TextStyle(fontSize: 22, color: Colors.black),
                   decoration: InputDecoration(
                     labelText: 'Password',
-                    labelStyle: const TextStyle(fontSize: 20, color: Colors.black54),
+                    labelStyle: const TextStyle(
+                      fontSize: 20,
+                      color: Colors.black54,
+                    ),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -156,10 +163,7 @@ class LoginScreen extends StatelessWidget {
                 // Accessibility tip
                 const Text(
                   'Tip: You can use a screen reader to assist navigation.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                  ),
+                  style: TextStyle(fontSize: 16, color: Colors.white70),
                   textAlign: TextAlign.center,
                 ),
               ],
