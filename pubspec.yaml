@@ -57,8 +57,8 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-    -assets:
-      - assets/images/openear_logo.png
+  assets:
+      - assets/images/OpenEar_logo.png
       
 
   # To add assets to your application, add an assets section, like this:
