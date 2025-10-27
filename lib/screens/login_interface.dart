@@ -46,12 +46,21 @@ class LoginScreen extends StatelessWidget {
                       color: Colors.white.withOpacity(0.8), // soft white border
                       width: 3, // thickness of the border
                     ),
+<<<<<<< HEAD
                     borderRadius: BorderRadius.circular(16), // rounded edges
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.25),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
+=======
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        'assets/images/OpenEar_logo.jpg',
+                        height: 130,
+                        fit: BoxFit.cover,
+>>>>>>> 46b446f (added string username for navigator.push)
                       ),
                     ],
                   ),

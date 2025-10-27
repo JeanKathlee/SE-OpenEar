@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'home_page.dart'; // Link to HomePage screen
 
 class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
+  const WelcomeScreen({super.key, required this.username});
+
+  final String username;
 
   @override
   Widget build(BuildContext context) {
