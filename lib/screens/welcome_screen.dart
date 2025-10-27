@@ -34,7 +34,7 @@ class WelcomeScreen extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.hearing,
-                  color: Colors.blueAccent,
+                  color: Color.fromARGB(255, 255, 255, 255),
                   size: 80,
                 ),
               ),
@@ -54,7 +54,7 @@ class WelcomeScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.black54,
+                  color: Colors.white,
                   height: 1.4,
                 ),
               ),

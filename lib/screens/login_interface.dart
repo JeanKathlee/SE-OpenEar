@@ -25,25 +25,12 @@ class LoginScreen extends StatelessWidget {
                       color: Colors.white.withOpacity(0.8),
                       width: 3,
                     ),
-<<<<<<< HEAD
-<<<<<<< HEAD
-                    borderRadius: BorderRadius.circular(16), // rounded edges
-=======
                     borderRadius: BorderRadius.circular(16),
->>>>>>> 67878ba8965056f6f8ae8a80659036a35e0e9746
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.25),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
-=======
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        'assets/images/OpenEar_logo.jpg',
-                        height: 130,
-                        fit: BoxFit.cover,
->>>>>>> 46b446f (added string username for navigator.push)
                       ),
                     ],
                   ),
@@ -58,15 +45,6 @@ class LoginScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                const Text(
-                  'Welcome to OpenEar',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
                 const SizedBox(height: 16),
 
                 // Username
@@ -79,6 +57,7 @@ class LoginScreen extends StatelessWidget {
                       fontSize: 20,
                       color: Colors.black54,
                     ),
+                    floatingLabelBehavior: FloatingLabelBehavior.never,
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -98,6 +77,7 @@ class LoginScreen extends StatelessWidget {
                       fontSize: 20,
                       color: Colors.black54,
                     ),
+                    floatingLabelBehavior: FloatingLabelBehavior.never,
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -132,7 +112,8 @@ class LoginScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const WelcomeScreen(),
+                            builder: (context) =>
+                                WelcomeScreen(username: username),
                           ),
                         );
                       }
