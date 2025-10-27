@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/welcome_screen.dart'; // ✅ We now load the screen from a separate file
+import 'screens/welcome_screen.dart'; // We now load the screen from a separate file
 
 void main() {
   runApp(const OpenEarApp());
@@ -18,7 +18,8 @@ class OpenEarApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
       ),
-      home: const WelcomeScreen(), // ✅ Starting screen is now external
+      home: const WelcomeScreen(), // Starting screen is now external
     );
   }
 }
+
