@@ -1,32 +1,11 @@
 import 'package:flutter/material.dart';
 import 'welcome_screen.dart';
 
-void main() {
-  runApp(OpenEarLoginApp());
-}
-
-class OpenEarLoginApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'OpenEar Login',
-      theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFF384A5F),
-        primaryColor: const Color(0xFF90AFC5),
-        textTheme: const TextTheme(
-          bodyLarge: TextStyle(fontSize: 22.0, color: Colors.white),
-          bodyMedium: TextStyle(fontSize: 18.0, color: Colors.white70),
-        ),
-      ),
-      home: LoginScreen(),
-      debugShowCheckedModeBanner: false,
-    );
-  }
-}
-
 class LoginScreen extends StatelessWidget {
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+
+  LoginScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -43,11 +22,15 @@ class LoginScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.8), // soft white border
-                      width: 3, // thickness of the border
+                      color: Colors.white.withOpacity(0.8),
+                      width: 3,
                     ),
 <<<<<<< HEAD
+<<<<<<< HEAD
                     borderRadius: BorderRadius.circular(16), // rounded edges
+=======
+                    borderRadius: BorderRadius.circular(16),
+>>>>>>> 67878ba8965056f6f8ae8a80659036a35e0e9746
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.25),
@@ -75,7 +58,6 @@ class LoginScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // App title
                 const Text(
                   'Welcome to OpenEar',
                   style: TextStyle(
@@ -87,7 +69,7 @@ class LoginScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Username field
+                // Username
                 TextField(
                   controller: usernameController,
                   style: const TextStyle(fontSize: 22, color: Colors.black),
@@ -106,7 +88,7 @@ class LoginScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Password field
+                // Password
                 TextField(
                   controller: passwordController,
                   style: const TextStyle(fontSize: 22, color: Colors.black),
@@ -126,7 +108,6 @@ class LoginScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Login button
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -151,7 +132,7 @@ class LoginScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => WelcomeScreen(),
+                            builder: (context) => const WelcomeScreen(),
                           ),
                         );
                       }
@@ -168,8 +149,6 @@ class LoginScreen extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 16),
-
-                // Accessibility tip
                 const Text(
                   'Tip: You can use a screen reader to assist navigation.',
                   style: TextStyle(fontSize: 16, color: Colors.white70),

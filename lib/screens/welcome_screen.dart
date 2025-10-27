@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'home_page.dart'; // Link to HomePage screen
+import 'home_page.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key, required this.username});
@@ -25,7 +25,6 @@ class WelcomeScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // App logo area
               Container(
                 height: 120,
                 width: 120,
@@ -40,8 +39,6 @@ class WelcomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 40),
-
-              // Welcome message
               const Text(
                 'Welcome to OpenEar 👂💙',
                 textAlign: TextAlign.center,
@@ -63,7 +60,6 @@ class WelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 40),
 
-              // Get Started button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
