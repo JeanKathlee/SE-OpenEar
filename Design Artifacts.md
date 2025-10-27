@@ -1,6 +1,5 @@
 UML User Case Diagram:
 
-Nombrado, John Cale N.
 <img width="1590" height="1308" alt="image" src="https://github.com/user-attachments/assets/c0ff0713-3fd6-4004-b1db-4f46fce3388c" />
 
 UML Class Diagram:
