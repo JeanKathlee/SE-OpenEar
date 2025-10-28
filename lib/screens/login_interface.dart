@@ -124,16 +124,35 @@ class LoginScreen extends StatelessWidget {
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 2,
+                        color: Colors.white,
                       ),
                     ),
                   ),
                 ),
 
                 const SizedBox(height: 16),
-                const Text(
-                  'Tip: You can use a screen reader to assist navigation.',
-                  style: TextStyle(fontSize: 16, color: Colors.white70),
+                RichText(
                   textAlign: TextAlign.center,
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Tip: ',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      TextSpan(
+                        text:
+                            'You can use a screen reader to assist navigation.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Color.fromARGB(255, 255, 255, 255),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

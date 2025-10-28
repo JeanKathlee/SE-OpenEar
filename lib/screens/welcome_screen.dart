@@ -40,12 +40,12 @@ class WelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 40),
               const Text(
-                'Welcome to OpenEar 👂💙',
+                'Welcome to OpenEar',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blueAccent,
+                  color: Color.fromARGB(255, 255, 255, 255),
                 ),
               ),
               const SizedBox(height: 16),
