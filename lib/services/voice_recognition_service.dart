@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 class VoiceRecognitionService {
-  static final VoiceRecognitionService _instance = VoiceRecognitionService._internal();
+  static final VoiceRecognitionService _instance =
+      VoiceRecognitionService._internal();
   factory VoiceRecognitionService() => _instance;
   VoiceRecognitionService._internal();
 
@@ -13,8 +14,14 @@ class VoiceRecognitionService {
     if (!_isInitialized) {
       _isInitialized = await _speech.initialize(
         onError: (error) => debugPrint('Speech recognition error: $error'),
-        onStatus: (status) => debugPrint('Speech recognition status: $status'),
+        onStatus: (status) =>
+            debugPrint('📡 Speech recognition status: $status'),
       );
+      if (_isInitialized) {
+        debugPrint('Speech recognition initialized successfully');
+      } else {
+        debugPrint('Speech recognition failed to initialize');
+      }
     }
     return _isInitialized;
   }
@@ -28,10 +35,14 @@ class VoiceRecognitionService {
       }
     }
 
+    debugPrint('🎤 Starting to listen...');
+
     await _speech.listen(
       onResult: (result) {
+        debugPrint('🗣️ Recognized (partial): ${result.recognizedWords}');
         if (result.finalResult) {
           final recognizedWords = result.recognizedWords.toLowerCase();
+          debugPrint('Final recognized words: $recognizedWords');
           onResult(recognizedWords);
         }
       },
@@ -40,6 +51,7 @@ class VoiceRecognitionService {
   }
 
   Future<void> stopListening() async {
+    debugPrint('Stopped listening');
     await _speech.stop();
   }
 
@@ -48,20 +60,22 @@ class VoiceRecognitionService {
   String processCommand(String command) {
     // Define keywords for each feature
     const Map<String, List<String>> featureKeywords = {
-      'read_notes': ['read', 'notes', 'read notes'],
-      'ask_questions': ['ask', 'questions', 'ask questions'],
-      'start_quiz': ['start', 'quiz', 'start quiz'],
+      'read_notes': ['read notes', 'read', 'notes'],
+      'ask_questions': ['ask questions', 'ask', 'question', 'questions'],
+      'start_quiz': ['start quiz', 'start', 'quiz'],
       'progress': ['progress', 'show progress', 'view progress'],
-      'upload_notes': ['upload', 'notes', 'upload notes', 'add notes'],
+      'upload_notes': ['upload notes', 'upload', 'add notes'],
     };
 
     // Check which feature keywords match the command
     for (final entry in featureKeywords.entries) {
       if (entry.value.any((keyword) => command.contains(keyword))) {
+        debugPrint('📢 Matched command: ${entry.key}');
         return entry.key;
       }
     }
 
+    debugPrint('No command matched for: $command');
     return ''; // Return empty string if no match found
   }
 }
