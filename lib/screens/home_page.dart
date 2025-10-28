@@ -5,6 +5,7 @@ import '/screens/homepage/ask_questions.dart';
 import '/screens/homepage/start_quiz.dart';
 import '/screens/homepage/progress.dart';
 import '/screens/homepage/upload_notes.dart';
+import '/widgets/voice_command_button.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -194,21 +195,26 @@ class _HomePageState extends State<HomePage> {
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ElevatedButton(
-                      onPressed: _toggleListening,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _listening
-                            ? Colors.redAccent
-                            : Colors.blueAccent,
-                        shape: const CircleBorder(),
-                        padding: const EdgeInsets.all(14),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: Icon(
-                        _listening ? Icons.mic_off : Icons.mic,
-                        color: Colors.white,
-                        size: 55,
-                      ),
+                    VoiceCommandButton(
+                      onCommandRecognized: (command) {
+                        switch (command) {
+                          case 'read_notes':
+                            _onReadNotes();
+                            break;
+                          case 'ask_questions':
+                            _onAskQuestion();
+                            break;
+                          case 'start_quiz':
+                            _onStartQuiz();
+                            break;
+                          case 'progress':
+                            _onProgress();
+                            break;
+                          case 'upload_notes':
+                            _onUploadNotes();
+                            break;
+                        }
+                      },
                     ),
                     const SizedBox(height: 6),
                     TextButton.icon(
