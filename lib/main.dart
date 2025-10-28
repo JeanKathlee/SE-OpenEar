@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'screens/login_interface.dart';
 
+// add a RouteObserver instance
+final RouteObserver<ModalRoute<void>> routeObserver =
+    RouteObserver<ModalRoute<void>>();
+
 void main() {
   runApp(const OpenEarApp());
 }
@@ -22,6 +26,9 @@ class OpenEarApp extends StatelessWidget {
         ),
       ),
       home: LoginScreen(),
+
+      // Add the RouteObserver to navigatorObservers
+      navigatorObservers: [routeObserver],
     );
   }
 }

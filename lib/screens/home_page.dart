@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart'; // <-- TTS import
+import 'package:flutter_tts/flutter_tts.dart';
 import '/screens/homepage/read_notes.dart';
 import '/screens/homepage/ask_questions.dart';
 import '/screens/homepage/start_quiz.dart';
@@ -14,18 +14,19 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  bool _listening = false;
-
-  // TTS instance
+class _HomePageState extends State<HomePage> with RouteAware {
   final FlutterTts _flutterTts = FlutterTts();
 
-  // Function to speak text
+  @override
+  void initState() {
+    super.initState();
+    _flutterTts.setLanguage("en-US");
+    _flutterTts.setPitch(1.0);
+    _flutterTts.setSpeechRate(0.7);
+  }
+
   Future<void> _speak(String message) async {
     await _flutterTts.stop(); // stop any previous speech
-    await _flutterTts.setLanguage("en-US");
-    await _flutterTts.setPitch(1.0);
-    await _flutterTts.setSpeechRate(0.5);
     await _flutterTts.speak(message);
   }
 
@@ -39,38 +40,45 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _onReadNotes() {
-    Navigator.push(
+  void _resumeListening() {
+    // Resumes voice recognition if returning to HomePage
+    if (mounted) {
+      setState(() {}); // triggers rebuild for VoiceCommandButton to re-init
+    }
+  }
+
+  void _onReadNotes() async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const ReadNotesScreen()),
+      MaterialPageRoute(builder: (_) => const ReadNotesScreen()),
     );
+    _resumeListening();
   }
 
-  void _onAskQuestion() {
-    AskQuestionsPopup.show(context);
+  void _onAskQuestion() async {
+    await AskQuestionsPopup.show(context);
+    _resumeListening();
   }
 
-  void _onStartQuiz() {
-    StartQuiz.show(context);
+  void _onStartQuiz() async {
+    await StartQuiz.show(context);
+    _resumeListening();
   }
 
-  void _onProgress() {
-    Navigator.push(
+  void _onProgress() async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const Progress()),
+      MaterialPageRoute(builder: (_) => const Progress()),
     );
+    _resumeListening();
   }
 
-  void _onUploadNotes() {
-    Navigator.push(
+  void _onUploadNotes() async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const UploadNotes()),
+      MaterialPageRoute(builder: (_) => const UploadNotes()),
     );
-  }
-
-  void _toggleListening() {
-    setState(() => _listening = !_listening);
-    _showInfo('Voice Mode', _listening ? 'Enabled' : 'Disabled');
+    _resumeListening();
   }
 
   Widget _buildActionButton({
@@ -127,17 +135,14 @@ class _HomePageState extends State<HomePage> {
           child: SingleChildScrollView(
             child: Column(
               children: [
-                // Tap container with TTS
                 InkWell(
                   onTap: () {
                     const message =
                         'OpenEar — voice-first learning for visually impaired learners. Main actions: Read Notes, Ask Question, Start Quiz, Progress, Upload / Add Notes.';
-
                     _showInfo(
                       'Welcome',
-                      'Main actions: Read Notes, Ask Question, Start Quiz, Progress.',
+                      'Main actions: Read Notes, Ask Question, Start Quiz, Progress, Upload / Add Notes.',
                     );
-
                     _speak(message);
                   },
                   child: Container(
@@ -153,7 +158,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 18),
                 _buildActionButton(
                   label: 'Read Notes',
@@ -189,9 +193,7 @@ class _HomePageState extends State<HomePage> {
                   onPressed: _onUploadNotes,
                   color: Colors.green.shade700,
                 ),
-
-                const SizedBox(height: 24), // spacing before mic + help
-                // Bottom mic + help
+                const SizedBox(height: 24),
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -215,6 +217,7 @@ class _HomePageState extends State<HomePage> {
                             break;
                         }
                       },
+                      speak: _speak,
                     ),
                     const SizedBox(height: 6),
                     TextButton.icon(

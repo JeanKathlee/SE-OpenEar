@@ -9,48 +9,66 @@ class VoiceRecognitionService {
 
   final SpeechToText _speech = SpeechToText();
   bool _isInitialized = false;
+  Function(String)? _onResultCallback;
+  bool _autoRestartAllowed = false;
 
   Future<bool> initialize() async {
     if (!_isInitialized) {
       _isInitialized = await _speech.initialize(
         onError: (error) => debugPrint('Speech recognition error: $error'),
-        onStatus: (status) =>
-            debugPrint('📡 Speech recognition status: $status'),
+        onStatus: (status) {
+          debugPrint('Speech recognition status: $status');
+
+          // Only auto-restart if explicitly allowed
+          if (_autoRestartAllowed &&
+              (status == 'notListening' || status == 'done') &&
+              _onResultCallback != null) {
+            startListening(_onResultCallback!);
+          }
+        },
       );
-      if (_isInitialized) {
-        debugPrint('Speech recognition initialized successfully');
-      } else {
-        debugPrint('Speech recognition failed to initialize');
-      }
+      debugPrint(
+        _isInitialized
+            ? 'Speech recognition initialized successfully'
+            : 'Speech recognition failed to initialize',
+      );
     }
     return _isInitialized;
   }
 
-  Future<void> startListening(Function(String) onResult) async {
+  Future<void> startListening(
+    Function(String) onResult, {
+    bool autoRestart = false,
+  }) async {
+    _onResultCallback = onResult;
+    _autoRestartAllowed = autoRestart;
+
     if (!_isInitialized) {
       final initialized = await initialize();
-      if (!initialized) {
-        debugPrint('Failed to initialize speech recognition');
-        return;
-      }
+      if (!initialized) return;
     }
 
-    debugPrint('🎤 Starting to listen...');
-
-    await _speech.listen(
-      onResult: (result) {
-        debugPrint('🗣️ Recognized (partial): ${result.recognizedWords}');
-        if (result.finalResult) {
+    if (!_speech.isListening) {
+      debugPrint('Starting to listen...');
+      await _speech.listen(
+        onResult: (result) {
           final recognizedWords = result.recognizedWords.toLowerCase();
-          debugPrint('Final recognized words: $recognizedWords');
-          onResult(recognizedWords);
-        }
-      },
-      localeId: 'en_US',
-    );
+          if (recognizedWords.isNotEmpty) {
+            debugPrint(
+              '${result.finalResult ? "Final" : "Partial"} recognized: $recognizedWords',
+            );
+            onResult(recognizedWords);
+          }
+        },
+        localeId: 'en_US',
+        partialResults: true,
+        listenMode: ListenMode.dictation,
+      );
+    }
   }
 
   Future<void> stopListening() async {
+    _autoRestartAllowed = false;
     debugPrint('Stopped listening');
     await _speech.stop();
   }
@@ -58,7 +76,6 @@ class VoiceRecognitionService {
   bool get isListening => _speech.isListening;
 
   String processCommand(String command) {
-    // Define keywords for each feature
     const Map<String, List<String>> featureKeywords = {
       'read_notes': ['read notes', 'read', 'notes'],
       'ask_questions': ['ask questions', 'ask', 'question', 'questions'],
@@ -67,15 +84,14 @@ class VoiceRecognitionService {
       'upload_notes': ['upload notes', 'upload', 'add notes'],
     };
 
-    // Check which feature keywords match the command
     for (final entry in featureKeywords.entries) {
       if (entry.value.any((keyword) => command.contains(keyword))) {
-        debugPrint('📢 Matched command: ${entry.key}');
+        debugPrint('Matched command: ${entry.key}');
         return entry.key;
       }
     }
 
     debugPrint('No command matched for: $command');
-    return ''; // Return empty string if no match found
+    return '';
   }
 }
