@@ -35,7 +35,7 @@ class _UploadNotesState extends State<UploadNotes> {
       builder: (_) => AlertDialog(
         title: const Text('Upload Notes'),
         content: const Text(
-          'Upload manually with the + button or use voice to navigate to local files.',
+          'Upload manually or use voice to navigate to local files.',
           style: TextStyle(color: Colors.black),
         ),
         actions: [
