@@ -9,10 +9,10 @@ class VoiceCommandButton extends StatefulWidget {
   final Future<void> Function(String) speak;
 
   const VoiceCommandButton({
-    Key? key,
+    super.key,
     required this.onCommandRecognized,
     required this.speak,
-  }) : super(key: key);
+  });
 
   @override
   State<VoiceCommandButton> createState() => _VoiceCommandButtonState();

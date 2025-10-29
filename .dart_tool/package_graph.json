@@ -7,7 +7,9 @@
       "name": "openear",
       "version": "1.0.0+1",
       "dependencies": [
+        "archive",
         "cupertino_icons",
+        "file_picker",
         "flutter",
         "flutter_tts",
         "permission_handler",
@@ -20,7 +22,7 @@
     },
     {
       "name": "flutter_lints",
-      "version": "5.0.0",
+      "version": "6.0.0",
       "dependencies": [
         "lints"
       ]
@@ -54,6 +56,29 @@
         "permission_handler_html",
         "permission_handler_platform_interface",
         "permission_handler_windows"
+      ]
+    },
+    {
+      "name": "archive",
+      "version": "3.6.1",
+      "dependencies": [
+        "crypto",
+        "path"
+      ]
+    },
+    {
+      "name": "file_picker",
+      "version": "8.3.7",
+      "dependencies": [
+        "cross_file",
+        "ffi",
+        "flutter",
+        "flutter_plugin_android_lifecycle",
+        "flutter_web_plugins",
+        "path",
+        "plugin_platform_interface",
+        "web",
+        "win32"
       ]
     },
     {
@@ -98,7 +123,7 @@
     },
     {
       "name": "lints",
-      "version": "5.1.1",
+      "version": "6.0.0",
       "dependencies": []
     },
     {
@@ -229,11 +254,10 @@
       ]
     },
     {
-      "name": "speech_to_text_windows",
-      "version": "1.0.0+beta.8",
+      "name": "crypto",
+      "version": "3.0.6",
       "dependencies": [
-        "flutter",
-        "speech_to_text_platform_interface"
+        "typed_data"
       ]
     },
     {
@@ -242,10 +266,52 @@
       "dependencies": []
     },
     {
+      "name": "cross_file",
+      "version": "0.3.4+2",
+      "dependencies": [
+        "meta",
+        "web"
+      ]
+    },
+    {
+      "name": "win32",
+      "version": "5.15.0",
+      "dependencies": [
+        "ffi"
+      ]
+    },
+    {
+      "name": "ffi",
+      "version": "2.1.4",
+      "dependencies": []
+    },
+    {
+      "name": "plugin_platform_interface",
+      "version": "2.1.8",
+      "dependencies": [
+        "meta"
+      ]
+    },
+    {
+      "name": "flutter_plugin_android_lifecycle",
+      "version": "2.0.32",
+      "dependencies": [
+        "flutter"
+      ]
+    },
+    {
       "name": "flutter_web_plugins",
       "version": "0.0.0",
       "dependencies": [
         "flutter"
+      ]
+    },
+    {
+      "name": "speech_to_text_windows",
+      "version": "1.0.0+beta.8",
+      "dependencies": [
+        "flutter",
+        "speech_to_text_platform_interface"
       ]
     },
     {
@@ -344,10 +410,10 @@
       ]
     },
     {
-      "name": "plugin_platform_interface",
-      "version": "2.1.8",
+      "name": "typed_data",
+      "version": "1.4.0",
       "dependencies": [
-        "meta"
+        "collection"
       ]
     },
     {
