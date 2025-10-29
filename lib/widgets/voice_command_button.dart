@@ -55,7 +55,7 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
   @override
   void didPopNext() {
     setState(() {
-      _isListening = false;
+      _isListening = _voiceService.isListening;
       _isMuted = false;
       _lastCommand = null;
     });
@@ -65,7 +65,6 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
     final status = await Permission.microphone.request();
     if (!status.isGranted) return;
 
-    // ✅ Attach auto-silence callback for “I’m still here”
     _voiceService.onSilenceDetected = () async {
       if (!_isMuted) {
         await widget.speak("I'm still here. You can speak again.");
@@ -76,33 +75,30 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
   }
 
   Future<void> _startListening() async {
-    if (_isMuted) return;
+    if (_isMuted || _voiceService.isListening) return;
 
-    if (!_voiceService.isListening) {
-      await _voiceService.startListening((recognizedWords) {
-        if (_isMuted) return;
+    await _voiceService.startListening((recognizedWords) {
+      if (_isMuted) return;
 
-        final command = _voiceService.processCommand(recognizedWords);
-        if (command.isEmpty) return;
+      final command = _voiceService.processCommand(recognizedWords);
+      if (command.isEmpty) return;
 
-        final now = DateTime.now();
+      final now = DateTime.now();
+      if (_lastCommand == command &&
+          now.difference(_lastCommandTime) < _debounceDuration) {
+        return;
+      }
 
-        if (_lastCommand == command &&
-            now.difference(_lastCommandTime) < _debounceDuration) {
-          return;
-        }
+      _lastCommand = command;
+      _lastCommandTime = now;
+      widget.onCommandRecognized(command);
+    }, autoRestart: true);
 
-        _lastCommand = command;
-        _lastCommandTime = now;
-        widget.onCommandRecognized(command);
-      }, autoRestart: true);
-    }
+    setState(() => _isListening = true); // UI state stays green
   }
 
   Future<void> _stopListening({bool resetState = false}) async {
-    if (_voiceService.isListening) {
-      await _voiceService.stopListening();
-    }
+    await _voiceService.stopListening(); // No need for userInitiated here
     if (resetState) {
       _lastCommand = null;
       _lastCommandTime = DateTime.now();
@@ -110,6 +106,8 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
         _isListening = false;
         _isMuted = false;
       });
+    } else {
+      setState(() => _isListening = _voiceService.isListening);
     }
   }
 
@@ -130,6 +128,7 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
       if (!_isMuted) {
         _startListening();
       } else {
+        // Stop the speech service but DO NOT touch _isListening
         _voiceService.stopListening();
       }
     }

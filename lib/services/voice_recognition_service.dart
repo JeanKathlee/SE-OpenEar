@@ -13,7 +13,7 @@ class VoiceRecognitionService {
   bool _autoRestartAllowed = false;
 
   Function(String)? _onResultCallback;
-  VoidCallback? onSilenceDetected; // 👈 Optional callback for “I’m still here”
+  VoidCallback? onSilenceDetected;
 
   Timer? _listeningMonitor;
   DateTime? _lastHeardTime;
@@ -27,7 +27,6 @@ class VoiceRecognitionService {
       onStatus: (status) async {
         debugPrint('Speech recognition status: $status');
 
-        // If speech ended or went idle
         if (_autoRestartAllowed &&
             (status == 'notListening' || status == 'done') &&
             _onResultCallback != null) {
@@ -57,22 +56,18 @@ class VoiceRecognitionService {
     Function(String) onResult, {
     bool autoRestart = false,
   }) async {
+    // Stop any existing listener before starting a new one
+    await stopListening();
+
     _onResultCallback = onResult;
     _autoRestartAllowed = autoRestart;
 
-    // Self-initialize if not already done
     if (!_isInitialized) {
       final ok = await initialize();
       if (!ok) {
         debugPrint('Speech recognition failed to initialize');
         return;
       }
-    }
-
-    // Skip if already listening
-    if (_speech.isListening) {
-      debugPrint('Skipped restart: already listening');
-      return;
     }
 
     debugPrint('Starting to listen...');
@@ -97,22 +92,21 @@ class VoiceRecognitionService {
     _startListeningMonitor();
   }
 
-  /// Tracks silence and restarts after prolonged silence (15s)
   void _startListeningMonitor() {
+    // Cancel any existing timer to prevent duplicates
     _listeningMonitor?.cancel();
     _listeningMonitor = Timer.periodic(const Duration(seconds: 1), (
-      Timer timer,
+      timer,
     ) async {
-      if (!_autoRestartAllowed) return;
-      if (_onResultCallback == null) return;
+      if (!_autoRestartAllowed || _onResultCallback == null) return;
 
       final now = DateTime.now();
       final silenceDuration = now.difference(_lastHeardTime ?? now).inSeconds;
 
-      if (silenceDuration > 12) {
+      if (silenceDuration > 5) {
         if (!_speech.isListening) {
           debugPrint('Auto-restarting after prolonged silence...');
-          onSilenceDetected?.call(); // 👈 trigger the “I’m still here” message
+          onSilenceDetected?.call();
           await startListening(
             _onResultCallback!,
             autoRestart: _autoRestartAllowed,
@@ -126,10 +120,19 @@ class VoiceRecognitionService {
 
   Future<void> stopListening() async {
     _autoRestartAllowed = false;
+
+    // Cancel monitor immediately
     _listeningMonitor?.cancel();
     _listeningMonitor = null;
-    debugPrint('Stopped listening');
-    await _speech.stop();
+
+    if (_speech.isListening) {
+      debugPrint('Stopped listening');
+      await _speech.stop();
+    }
+
+    // Clear callback to avoid command leakage
+    _onResultCallback = null;
+    _lastHeardTime = null;
   }
 
   bool get isListening => _speech.isListening;

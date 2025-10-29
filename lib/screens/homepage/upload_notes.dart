@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'dart:async';
 
 class UploadNotes extends StatefulWidget {
   const UploadNotes({super.key});
@@ -19,6 +19,8 @@ class _UploadNotesState extends State<UploadNotes> {
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _listening = false;
   String _lastWords = '';
+
+  Timer? _silenceTimer; // <-- moved here as class member
 
   @override
   void initState() {
@@ -34,6 +36,7 @@ class _UploadNotesState extends State<UploadNotes> {
         title: const Text('Upload Notes'),
         content: const Text(
           'Upload manually with the + button or use voice to navigate to local files.',
+          style: TextStyle(color: Colors.black),
         ),
         actions: [
           TextButton(
@@ -172,16 +175,38 @@ class _UploadNotesState extends State<UploadNotes> {
       }
       return;
     }
+
     setState(() => _listening = true);
+    _lastWords = '';
+    DateTime lastHeardTime = DateTime.now();
+
+    // Start a timer to check prolonged silence
+    _silenceTimer?.cancel();
+    _silenceTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      final now = DateTime.now();
+      final silenceDuration = now.difference(lastHeardTime).inSeconds;
+      if (silenceDuration > 5) {
+        await _tts.speak("I'm still here. You can speak again.");
+        lastHeardTime = DateTime.now(); // reset after feedback
+      }
+    });
+
     _speech.listen(
       onResult: (result) {
         setState(() {
           _lastWords = result.recognizedWords;
         });
+        if (_lastWords.isNotEmpty) {
+          lastHeardTime = DateTime.now(); // reset timer whenever user speaks
+        }
       },
+      localeId: 'en_US',
+      partialResults: true,
+      listenMode: stt.ListenMode.dictation,
     );
 
     if (!mounted) return;
+
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -193,17 +218,21 @@ class _UploadNotesState extends State<UploadNotes> {
             children: [
               const Text(
                 'Say part of the file name you want, then press Stop.',
+                style: TextStyle(color: Colors.black),
               ),
               const SizedBox(height: 12),
-              Text(
-                _lastWords.isEmpty ? 'Listening...' : 'Heard: "$_lastWords"',
-              ),
+              _lastWords.isEmpty
+                  ? Center(
+                      child: Icon(Icons.mic, size: 48, color: Colors.green),
+                    )
+                  : Text('Heard: "$_lastWords"'),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                _speech.stop();
+              onPressed: () async {
+                await _speech.stop();
+                _silenceTimer?.cancel();
                 setState(() => _listening = false);
                 Navigator.of(context).pop();
                 _pickFile(hintName: _lastWords);
@@ -211,8 +240,9 @@ class _UploadNotesState extends State<UploadNotes> {
               child: const Text('Stop'),
             ),
             TextButton(
-              onPressed: () {
-                _speech.stop();
+              onPressed: () async {
+                await _speech.stop();
+                _silenceTimer?.cancel();
                 setState(() => _listening = false);
                 Navigator.of(context).pop();
               },
@@ -227,7 +257,8 @@ class _UploadNotesState extends State<UploadNotes> {
   @override
   void dispose() {
     _tts.stop();
-    _speech.stop();
+    _speech.stop(); // ensure temporary listener is fully stopped
+    _silenceTimer?.cancel();
     super.dispose();
   }
 
@@ -242,7 +273,7 @@ class _UploadNotesState extends State<UploadNotes> {
             const Text(
               'Upload notes manually or use voice to navigate to local files.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18),
+              style: TextStyle(fontSize: 18, color: Colors.white),
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
@@ -258,11 +289,6 @@ class _UploadNotesState extends State<UploadNotes> {
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _pickFile,
-        tooltip: 'Upload file',
-        child: const Icon(Icons.add),
       ),
     );
   }
