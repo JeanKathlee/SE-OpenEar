@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // HapticFeedback
+import 'package:flutter/services.dart';
 import '../services/voice_recognition_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../main.dart'; // For routeObserver
@@ -23,9 +23,7 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
   final VoiceRecognitionService _voiceService = VoiceRecognitionService();
   bool _isListening = false;
   bool _isMuted = false;
-  bool _isInitialized = false;
 
-  // Debounce variables
   String? _lastCommand;
   DateTime _lastCommandTime = DateTime.now();
   final Duration _debounceDuration = const Duration(seconds: 1);
@@ -33,7 +31,7 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
   @override
   void initState() {
     super.initState();
-    _initializeSTT();
+    _setupVoiceService();
   }
 
   @override
@@ -49,16 +47,13 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
     super.dispose();
   }
 
-  /// Called when navigating away from this page
   @override
   void didPushNext() {
     _stopListening(resetState: true);
   }
 
-  /// Called when returning to this page
   @override
   void didPopNext() {
-    // Do NOT auto-start listening
     setState(() {
       _isListening = false;
       _isMuted = false;
@@ -66,17 +61,23 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
     });
   }
 
-  Future<void> _initializeSTT() async {
+  Future<void> _setupVoiceService() async {
     final status = await Permission.microphone.request();
     if (!status.isGranted) return;
 
-    _isInitialized = await _voiceService.initialize();
+    // ✅ Attach auto-silence callback for “I’m still here”
+    _voiceService.onSilenceDetected = () async {
+      if (!_isMuted) {
+        await widget.speak("I'm still here. You can speak again.");
+      }
+    };
+
+    await _voiceService.initialize();
   }
 
   Future<void> _startListening() async {
-    if (!_isInitialized || _isMuted) return;
+    if (_isMuted) return;
 
-    // Only one active session per button
     if (!_voiceService.isListening) {
       await _voiceService.startListening((recognizedWords) {
         if (_isMuted) return;
@@ -86,7 +87,6 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
 
         final now = DateTime.now();
 
-        // Debounce only for repeated command
         if (_lastCommand == command &&
             now.difference(_lastCommandTime) < _debounceDuration) {
           return;
@@ -94,9 +94,8 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
 
         _lastCommand = command;
         _lastCommandTime = now;
-
         widget.onCommandRecognized(command);
-      }, autoRestart: false); // <-- no auto restart
+      }, autoRestart: true);
     }
   }
 
@@ -118,7 +117,6 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
     HapticFeedback.selectionClick();
 
     if (!_isListening) {
-      // Start active listening
       setState(() {
         _isListening = true;
         _isMuted = false;
@@ -126,7 +124,6 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
       widget.speak('Active Listening');
       _startListening();
     } else {
-      // Toggle mute
       setState(() => _isMuted = !_isMuted);
       widget.speak(_isMuted ? 'Muted' : 'Unmuted');
 
