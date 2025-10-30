@@ -1,11 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 class AskQuestionsPopup {
   static Future<void> show(BuildContext context) async {
-    showDialog(
+    final FlutterTts flutterTts = FlutterTts();
+
+    // Speak when the dialog opens
+    await flutterTts.setLanguage("en-US");
+    await flutterTts.setPitch(1.0);
+    await flutterTts.setSpeechRate(0.7);
+    await flutterTts.speak("You are now in Ask Question screen.");
+
+    // Text controller for optional input
+    TextEditingController controller = TextEditingController();
+
+    await showDialog(
       context: context,
-      barrierDismissible: true, // tap outside to close
-      builder: (BuildContext context) {
+      barrierDismissible: true,
+      builder: (context) {
         return Dialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
@@ -27,20 +39,19 @@ class AskQuestionsPopup {
                 const SizedBox(height: 15),
                 const Text(
                   "Tap the mic and start speaking your question!",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
                   textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.black),
                 ),
                 const SizedBox(height: 20),
                 GestureDetector(
-                  onTap: () {
-                    // TODO: Add voice recognition logic here
+                  onTap: () async {
+                    // Example: show snackbar or start speech-to-text
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("Listening... 🎤")),
                     );
+
+                    // Optional: speak a prompt
+                    await flutterTts.speak("Listening...");
                   },
                   child: Container(
                     padding: const EdgeInsets.all(20),
@@ -53,7 +64,11 @@ class AskQuestionsPopup {
                 ),
                 const SizedBox(height: 15),
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    // Optional: speak when closing
+                    await flutterTts.speak("Questions closed.");
+                  },
                   child: const Text("Close"),
                 ),
               ],

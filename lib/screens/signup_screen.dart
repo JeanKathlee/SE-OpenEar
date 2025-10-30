@@ -1,12 +1,38 @@
 import 'package:flutter/material.dart';
 import 'welcome_screen.dart';
-import 'signup_screen.dart';
 
-class LoginScreen extends StatelessWidget {
+class SignUpScreen extends StatefulWidget {
+  const SignUpScreen({super.key});
+
+  @override
+  State<SignUpScreen> createState() => _SignUpScreenState();
+}
+
+class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController usernameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
-  LoginScreen({super.key});
+  void _handleSignUp() {
+    final username = usernameController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (username.isEmpty || email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
+      return;
+    }
+
+    // You can later integrate Firebase or API signup logic here
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => WelcomeScreen(username: username),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +73,7 @@ class LoginScreen extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 const Text(
-                  'Welcome Back!',
+                  'Create Account',
                   style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
@@ -59,9 +85,29 @@ class LoginScreen extends StatelessWidget {
                 // Username
                 TextField(
                   controller: usernameController,
-                  style: const TextStyle(fontSize: 22, color: Colors.black),
+                  style: const TextStyle(fontSize: 20, color: Colors.black),
                   decoration: InputDecoration(
                     labelText: 'Username',
+                    labelStyle: const TextStyle(
+                      fontSize: 20,
+                      color: Colors.black54,
+                    ),
+                    floatingLabelBehavior: FloatingLabelBehavior.never,
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Email
+                TextField(
+                  controller: emailController,
+                  style: const TextStyle(fontSize: 20, color: Colors.black),
+                  decoration: InputDecoration(
+                    labelText: 'Email',
                     labelStyle: const TextStyle(
                       fontSize: 20,
                       color: Colors.black54,
@@ -79,7 +125,8 @@ class LoginScreen extends StatelessWidget {
                 // Password
                 TextField(
                   controller: passwordController,
-                  style: const TextStyle(fontSize: 22, color: Colors.black),
+                  obscureText: true,
+                  style: const TextStyle(fontSize: 20, color: Colors.black),
                   decoration: InputDecoration(
                     labelText: 'Password',
                     labelStyle: const TextStyle(
@@ -93,11 +140,9 @@ class LoginScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  obscureText: true,
                 ),
                 const SizedBox(height: 24),
 
-                // LOGIN BUTTON
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -108,28 +153,9 @@ class LoginScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    onPressed: () {
-                      final username = usernameController.text.trim();
-                      final password = passwordController.text.trim();
-
-                      if (username.isEmpty || password.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please enter username and password'),
-                          ),
-                        );
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                WelcomeScreen(username: username),
-                          ),
-                        );
-                      }
-                    },
+                    onPressed: _handleSignUp,
                     child: const Text(
-                      'LOGIN',
+                      'SIGN UP',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -140,45 +166,12 @@ class LoginScreen extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 16),
-
-                // ADD SIGN UP REDIRECT
+                const SizedBox(height: 12),
                 TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SignUpScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: () => Navigator.pop(context),
                   child: const Text(
-                    "Don't have an account? Sign up",
+                    'Already have an account? Log in',
                     style: TextStyle(fontSize: 16, color: Colors.white),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Accessibility Tip
-                RichText(
-                  textAlign: TextAlign.center,
-                  text: const TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'Tip: ',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange,
-                        ),
-                      ),
-                      TextSpan(
-                        text:
-                            'You can use a screen reader to assist navigation.',
-                        style: TextStyle(fontSize: 16, color: Colors.white),
-                      ),
-                    ],
                   ),
                 ),
               ],

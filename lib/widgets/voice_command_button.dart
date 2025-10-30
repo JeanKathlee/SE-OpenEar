@@ -28,6 +28,8 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
   DateTime _lastCommandTime = DateTime.now();
   final Duration _debounceDuration = const Duration(seconds: 1);
 
+  bool _isNavigating = false; // Prevent double command triggers
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +60,7 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
       _isListening = _voiceService.isListening;
       _isMuted = false;
       _lastCommand = null;
+      _isNavigating = false; // reset when coming back
     });
   }
 
@@ -89,19 +92,28 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
         return;
       }
 
+      if (_isNavigating) return; // prevent multiple triggers during navigation
+      _isNavigating = true;
+
       _lastCommand = command;
       _lastCommandTime = now;
       widget.onCommandRecognized(command);
+
+      // Reset navigating after small delay to allow next command
+      Future.delayed(const Duration(seconds: 1), () {
+        _isNavigating = false;
+      });
     }, autoRestart: true);
 
-    setState(() => _isListening = true); // UI state stays green
+    setState(() => _isListening = true);
   }
 
   Future<void> _stopListening({bool resetState = false}) async {
-    await _voiceService.stopListening(); // No need for userInitiated here
+    await _voiceService.stopListening();
     if (resetState) {
       _lastCommand = null;
       _lastCommandTime = DateTime.now();
+      _isNavigating = false;
       setState(() {
         _isListening = false;
         _isMuted = false;
@@ -128,7 +140,6 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
       if (!_isMuted) {
         _startListening();
       } else {
-        // Stop the speech service but DO NOT touch _isListening
         _voiceService.stopListening();
       }
     }
