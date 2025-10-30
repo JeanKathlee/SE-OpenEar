@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:async';
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -8,9 +7,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class UploadNotes extends StatefulWidget {
-  final bool showPrompt;
-
-  const UploadNotes({super.key, this.showPrompt = true});
+  const UploadNotes({super.key});
 
   @override
   State<UploadNotes> createState() => _UploadNotesState();
@@ -19,105 +16,58 @@ class UploadNotes extends StatefulWidget {
 class _UploadNotesState extends State<UploadNotes> {
   final FlutterTts _tts = FlutterTts();
   final stt.SpeechToText _speech = stt.SpeechToText();
+
   bool _listening = false;
   String _lastWords = '';
-  Timer? _silenceTimer;
-  static bool _hasSpoken = false; // Prevent repeated intro speech
+  String _lastSpokenText = ''; // store current TTS text
+  bool _isPaused = false; // tracks Pause/Resume state
 
   @override
   void initState() {
     super.initState();
     _announceScreen();
-    if (widget.showPrompt) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _showUploadPrompt());
-    }
   }
 
   Future<void> _announceScreen() async {
-    if (_hasSpoken) return;
-    _hasSpoken = true;
     await _tts.setLanguage('en-US');
     await _tts.setSpeechRate(0.6);
-    await _tts.stop(); // stop any overlapping
+    await _tts.stop();
     await _tts.speak('You are now in the Upload Notes screen.');
   }
 
-  Future<void> _showUploadPrompt() async {
-    if (!mounted) return;
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Upload Notes'),
-        content: const Text(
-          'Upload manually or use voice to navigate to local files.',
-          style: TextStyle(color: Colors.black),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _pickFile();
-            },
-            child: const Text('Upload Manually'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _startVoiceFlow();
-            },
-            child: const Text('Use Voice'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _pickFile({String? hintName}) async {
+  Future<void> _pickFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['txt', 'docx'],
         allowMultiple: false,
       );
-      if (result == null || result.files.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('No file selected')));
-        }
-        return;
-      }
+
+      if (result == null || result.files.isEmpty) return;
 
       final path = result.files.single.path;
-      if (path == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Unable to access file path')),
-          );
-        }
-        return;
-      }
+      if (path == null) return;
 
       final file = File(path);
       await _handlePickedFile(file);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('File pick error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('File pick error: $e')),
+        );
       }
     }
   }
 
   Future<void> _handlePickedFile(File file) async {
     final name = file.path.split(Platform.pathSeparator).last.toLowerCase();
-    String? extracted;
+    String? text;
 
     try {
       if (name.endsWith('.txt')) {
-        extracted = await file.readAsString();
+        text = await file.readAsString();
       } else if (name.endsWith('.docx')) {
-        extracted = await _extractTextFromDocx(file);
+        text = await _extractTextFromDocx(file);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -127,26 +77,25 @@ class _UploadNotesState extends State<UploadNotes> {
         return;
       }
 
-      if (extracted == null || extracted.trim().isEmpty) {
+      if (text == null || text.trim().isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No readable text found in file')),
+            const SnackBar(content: Text('No readable text found')),
           );
         }
         return;
       }
 
-      await _speakText(extracted);
+      await _speakText(text);
+
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Playing text from: $name')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Playing text from: $name')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error processing file: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -157,8 +106,7 @@ class _UploadNotesState extends State<UploadNotes> {
       final archive = ZipDecoder().decodeBytes(bytes);
       for (final f in archive) {
         if (f.name == 'word/document.xml') {
-          final data = f.content as List<int>;
-          final xml = utf8.decode(data);
+          final xml = utf8.decode(f.content as List<int>);
           final plain = xml.replaceAll(RegExp(r'<[^>]+>'), ' ');
           return plain.replaceAll(RegExp(r'\s+'), ' ').trim();
         }
@@ -170,17 +118,16 @@ class _UploadNotesState extends State<UploadNotes> {
   }
 
   Future<void> _speakText(String text) async {
+    _lastSpokenText = text; // save for resume
+    await _tts.stop();
     await _tts.setLanguage('en-US');
     await _tts.setSpeechRate(0.45);
-    await _tts.stop();
     await _tts.speak(text);
+    setState(() => _isPaused = false);
   }
 
   Future<void> _startVoiceFlow() async {
-    final available = await _speech.initialize(
-      onStatus: (_) {},
-      onError: (_) {},
-    );
+    final available = await _speech.initialize();
     if (!available) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -192,27 +139,12 @@ class _UploadNotesState extends State<UploadNotes> {
 
     setState(() => _listening = true);
     _lastWords = '';
-    DateTime lastHeardTime = DateTime.now();
-
-    _silenceTimer?.cancel();
-    _silenceTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      final now = DateTime.now();
-      final silenceDuration = now.difference(lastHeardTime).inSeconds;
-      if (silenceDuration > 5) {
-        await _tts.stop();
-        await _tts.speak("I'm still here. You can speak again.");
-        lastHeardTime = DateTime.now();
-      }
-    });
 
     _speech.listen(
       onResult: (result) {
         setState(() {
           _lastWords = result.recognizedWords;
         });
-        if (_lastWords.isNotEmpty) {
-          lastHeardTime = DateTime.now();
-        }
       },
       localeId: 'en_US',
       partialResults: true,
@@ -224,85 +156,160 @@ class _UploadNotesState extends State<UploadNotes> {
     await showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          title: const Text('Voice Navigate'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Say part of the file name you want, then press Stop.',
-                style: TextStyle(color: Colors.black),
-              ),
-              const SizedBox(height: 12),
-              _lastWords.isEmpty
-                  ? const Center(
-                      child: Icon(Icons.mic, size: 48, color: Colors.green),
-                    )
-                  : Text('Heard: "$_lastWords"'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                await _speech.stop();
-                _silenceTimer?.cancel();
-                setState(() => _listening = false);
-                Navigator.of(context).pop();
-                _pickFile(hintName: _lastWords);
-              },
-              child: const Text('Stop'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await _speech.stop();
-                _silenceTimer?.cancel();
-                setState(() => _listening = false);
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
+      builder: (_) => AlertDialog(
+        title: const Text('Voice Navigate'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+                'Say part of the file name, then press Stop to pick a file.'),
+            const SizedBox(height: 12),
+            _lastWords.isEmpty
+                ? const Icon(Icons.mic, size: 48, color: Colors.green)
+                : Text('Heard: "$_lastWords"'),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await _speech.stop();
+              setState(() => _listening = false);
+              Navigator.of(context).pop();
+              await _pickFile();
+            },
+            child: const Text('Stop'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _speech.stop();
+              setState(() => _listening = false);
+              Navigator.of(context).pop();
+            },
+            child: const Text('Cancel'),
+          ),
+        ],
       ),
     );
   }
 
   @override
   void dispose() {
-    _hasSpoken = false; // Reset when leaving screen
     _tts.stop();
     _speech.stop();
-    _silenceTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Upload Notes')),
+      backgroundColor: const Color.fromARGB(255, 255, 255, 255), 
+      appBar: AppBar(
+        title: const Text('Upload Notes'),
+        backgroundColor: Colors.deepPurpleAccent,
+      ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'Upload notes manually or use voice to navigate to local files.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, color: Colors.white),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _pickFile,
-              icon: const Icon(Icons.upload_file),
-              label: const Text('Upload Manually'),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: _startVoiceFlow,
-              icon: const Icon(Icons.mic),
-              label: const Text('Use Voice to Navigate'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              const Text(
+                'Upload notes manually or use voice to navigate to local files.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                  color: Color.fromARGB(255, 0, 0, 0),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurpleAccent,
+                    foregroundColor: Colors.white,
+                    textStyle: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _pickFile,
+                  icon: const Icon(Icons.upload_file, size: 28),
+                  label: const Text('Upload Manually'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.greenAccent[700],
+                    foregroundColor: Colors.white,
+                    textStyle: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _startVoiceFlow,
+                  icon: const Icon(Icons.mic, size: 28),
+                  label: const Text('Use Voice to Navigate'),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      minimumSize: const Size(120, 50),
+                    ),
+                    onPressed: () async {
+                      await _tts.stop();
+                      setState(() => _isPaused = false);
+                    },
+                    icon: const Icon(Icons.stop, size: 24),
+                    label: const Text('Stop'),
+                  ),
+                  const SizedBox(width: 16),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orangeAccent,
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      minimumSize: const Size(120, 50),
+                    ),
+                    onPressed: () async {
+                      if (_isPaused) {
+                        await _tts.speak(_lastSpokenText); // Resume
+                        setState(() => _isPaused = false);
+                      } else {
+                        await _tts.pause(); // Pause
+                        setState(() => _isPaused = true);
+                      }
+                    },
+                    icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause, size: 24),
+                    label: Text(_isPaused ? 'Resume' : 'Pause'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

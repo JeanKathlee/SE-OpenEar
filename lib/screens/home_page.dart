@@ -85,7 +85,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
     _navigateOnce(() async {
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => UploadNotes(showPrompt: !fromVoice)),
+        MaterialPageRoute(builder: (_) => UploadNotes()),
       );
     });
   }
