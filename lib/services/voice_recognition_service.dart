@@ -143,7 +143,7 @@ class VoiceRecognitionService {
       'ask_questions': ['ask questions', 'ask', 'question', 'questions'],
       'start_quiz': ['start quiz', 'start', 'quiz'],
       'progress': ['progress', 'show progress', 'view progress'],
-      'upload_notes': ['upload notes', 'upload', 'add notes'],
+      'upload_notes': ['upload files', 'file', 'add file'],
     };
 
     for (final entry in featureKeywords.entries) {

@@ -1,11 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
-class ReadNotesScreen extends StatelessWidget {
+class ReadNotesScreen extends StatefulWidget {
   const ReadNotesScreen({super.key});
 
   @override
+  State<ReadNotesScreen> createState() => _ReadNotesScreenState();
+}
+
+class _ReadNotesScreenState extends State<ReadNotesScreen> {
+  final FlutterTts _tts = FlutterTts();
+  bool _hasAnnounced = false; // ✅ Prevent repeated announcement
+  bool _isSpeaking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _announce());
+  }
+
+  Future<void> _announce() async {
+    if (_hasAnnounced || _isSpeaking) return;
+    _isSpeaking = true;
+    _hasAnnounced = true;
+
+    await _tts.stop();
+    await _tts.setLanguage('en-US');
+    await _tts.setSpeechRate(0.6);
+    await _tts.awaitSpeakCompletion(true);
+
+    await _tts.speak('You are now in the Read Notes screen.');
+
+    _tts.setCompletionHandler(() {
+      _isSpeaking = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Temporary placeholder notes; replace with dynamic data later
     final List<String> notes = [
       'Note 1: Introduction to Voice-First Learning',
       'Note 2: Importance of Accessibility in Education',
@@ -62,7 +100,6 @@ class ReadNotesScreen extends StatelessWidget {
                               duration: const Duration(seconds: 2),
                             ),
                           );
-                          // TODO: Add Text-to-Speech (TTS) here later
                         },
                       ),
                     );

@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'dart:async';
 
 class UploadNotes extends StatefulWidget {
-  const UploadNotes({super.key});
+  final bool showPrompt;
+
+  const UploadNotes({super.key, this.showPrompt = true});
 
   @override
   State<UploadNotes> createState() => _UploadNotesState();
@@ -19,13 +21,25 @@ class _UploadNotesState extends State<UploadNotes> {
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _listening = false;
   String _lastWords = '';
-
-  Timer? _silenceTimer; // <-- moved here as class member
+  Timer? _silenceTimer;
+  static bool _hasSpoken = false; // Prevent repeated intro speech
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showUploadPrompt());
+    _announceScreen();
+    if (widget.showPrompt) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showUploadPrompt());
+    }
+  }
+
+  Future<void> _announceScreen() async {
+    if (_hasSpoken) return;
+    _hasSpoken = true;
+    await _tts.setLanguage('en-US');
+    await _tts.setSpeechRate(0.6);
+    await _tts.stop(); // stop any overlapping
+    await _tts.speak('You are now in the Upload Notes screen.');
   }
 
   Future<void> _showUploadPrompt() async {
@@ -180,14 +194,14 @@ class _UploadNotesState extends State<UploadNotes> {
     _lastWords = '';
     DateTime lastHeardTime = DateTime.now();
 
-    // Start a timer to check prolonged silence
     _silenceTimer?.cancel();
     _silenceTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       final now = DateTime.now();
       final silenceDuration = now.difference(lastHeardTime).inSeconds;
       if (silenceDuration > 5) {
+        await _tts.stop();
         await _tts.speak("I'm still here. You can speak again.");
-        lastHeardTime = DateTime.now(); // reset after feedback
+        lastHeardTime = DateTime.now();
       }
     });
 
@@ -197,7 +211,7 @@ class _UploadNotesState extends State<UploadNotes> {
           _lastWords = result.recognizedWords;
         });
         if (_lastWords.isNotEmpty) {
-          lastHeardTime = DateTime.now(); // reset timer whenever user speaks
+          lastHeardTime = DateTime.now();
         }
       },
       localeId: 'en_US',
@@ -222,7 +236,7 @@ class _UploadNotesState extends State<UploadNotes> {
               ),
               const SizedBox(height: 12),
               _lastWords.isEmpty
-                  ? Center(
+                  ? const Center(
                       child: Icon(Icons.mic, size: 48, color: Colors.green),
                     )
                   : Text('Heard: "$_lastWords"'),
@@ -256,8 +270,9 @@ class _UploadNotesState extends State<UploadNotes> {
 
   @override
   void dispose() {
+    _hasSpoken = false; // Reset when leaving screen
     _tts.stop();
-    _speech.stop(); // ensure temporary listener is fully stopped
+    _speech.stop();
     _silenceTimer?.cancel();
     super.dispose();
   }

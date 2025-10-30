@@ -16,6 +16,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with RouteAware {
   final FlutterTts _flutterTts = FlutterTts();
+  bool _isNavigating = false; // Prevent multiple navigations
 
   @override
   void initState() {
@@ -26,59 +27,67 @@ class _HomePageState extends State<HomePage> with RouteAware {
   }
 
   Future<void> _speak(String message) async {
-    await _flutterTts.stop(); // stop any previous speech
+    await _flutterTts.stop();
     await _flutterTts.speak(message);
   }
 
   void _showInfo(String title, String subtitle) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$title — $subtitle'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$title — $subtitle')));
   }
 
   void _resumeListening() {
-    // Resumes voice recognition if returning to HomePage
-    if (mounted) {
-      setState(() {}); // triggers rebuild for VoiceCommandButton to re-init
-    }
+    if (mounted) setState(() {});
   }
 
-  void _onReadNotes() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ReadNotesScreen()),
-    );
+  // Wrap navigation to prevent multiple triggers
+  Future<void> _navigateOnce(Future<void> Function() action) async {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    await action();
+    _isNavigating = false;
     _resumeListening();
   }
 
-  void _onAskQuestion() async {
-    await AskQuestionsPopup.show(context);
-    _resumeListening();
+  void _onReadNotes() {
+    _navigateOnce(() async {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ReadNotesScreen()),
+      );
+    });
   }
 
-  void _onStartQuiz() async {
-    await StartQuiz.show(context);
-    _resumeListening();
+  void _onAskQuestion() {
+    _navigateOnce(() async {
+      await AskQuestionsPopup.show(context);
+    });
   }
 
-  void _onProgress() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const Progress()),
-    );
-    _resumeListening();
+  void _onStartQuiz() {
+    _navigateOnce(() async {
+      await StartQuiz.show(context);
+    });
   }
 
-  void _onUploadNotes() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const UploadNotes()),
-    );
-    _resumeListening();
+  void _onProgress() {
+    _navigateOnce(() async {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const Progress()),
+      );
+    });
+  }
+
+  void _onUploadNotes({bool fromVoice = false}) {
+    _navigateOnce(() async {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => UploadNotes(showPrompt: !fromVoice)),
+      );
+    });
   }
 
   Widget _buildActionButton({
@@ -87,34 +96,29 @@ class _HomePageState extends State<HomePage> with RouteAware {
     required VoidCallback onPressed,
     Color color = Colors.blueAccent,
   }) {
-    return Semantics(
-      button: true,
-      label: label,
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 26, color: Colors.white),
-          label: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 26, color: Colors.white),
+        label: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
             ),
           ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: color,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 2,
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
+          elevation: 2,
         ),
       ),
     );
@@ -138,11 +142,8 @@ class _HomePageState extends State<HomePage> with RouteAware {
                 InkWell(
                   onTap: () {
                     const message =
-                        'OpenEar — voice-first learning for visually impaired learners. Main actions: Read Notes, Ask Question, Start Quiz, Progress, Upload / Add Notes.';
-                    _showInfo(
-                      'Welcome',
-                      'Main actions: Read Notes, Ask Question, Start Quiz, Progress, Upload / Add Notes.',
-                    );
+                        'OpenEar — voice-first learning for visually impaired learners. Main actions: Read Notes, Ask Question, Start Quiz, Progress, Upload Notes.';
+                    _showInfo('Welcome', 'Tap buttons or use your voice.');
                     _speak(message);
                   },
                   child: Container(
@@ -188,51 +189,46 @@ class _HomePageState extends State<HomePage> with RouteAware {
                 ),
                 const SizedBox(height: 12),
                 _buildActionButton(
-                  label: 'Upload / Add Notes',
+                  label: 'Upload Files',
                   icon: Icons.upload_file,
-                  onPressed: _onUploadNotes,
+                  onPressed: () => _onUploadNotes(fromVoice: false),
                   color: Colors.green.shade700,
                 ),
                 const SizedBox(height: 24),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    VoiceCommandButton(
-                      onCommandRecognized: (command) {
-                        switch (command) {
-                          case 'read_notes':
-                            _onReadNotes();
-                            break;
-                          case 'ask_questions':
-                            _onAskQuestion();
-                            break;
-                          case 'start_quiz':
-                            _onStartQuiz();
-                            break;
-                          case 'progress':
-                            _onProgress();
-                            break;
-                          case 'upload_notes':
-                            _onUploadNotes();
-                            break;
-                        }
-                      },
-                      speak: _speak,
-                    ),
-                    const SizedBox(height: 6),
-                    TextButton.icon(
-                      onPressed: () => _showInfo(
-                        'Help',
-                        'Say "help" — voice commands will be added later.',
-                      ),
-                      icon: const Icon(Icons.help_outline, size: 20),
-                      label: const Text('Help'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.blueAccent,
-                        textStyle: const TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  ],
+                VoiceCommandButton(
+                  onCommandRecognized: (command) {
+                    switch (command) {
+                      case 'read_notes':
+                        _onReadNotes();
+                        break;
+                      case 'ask_questions':
+                        _onAskQuestion();
+                        break;
+                      case 'start_quiz':
+                        _onStartQuiz();
+                        break;
+                      case 'progress':
+                        _onProgress();
+                        break;
+                      case 'upload_notes':
+                        _onUploadNotes(fromVoice: true);
+                        break;
+                    }
+                  },
+                  speak: _speak,
+                ),
+                const SizedBox(height: 6),
+                TextButton.icon(
+                  onPressed: () => _showInfo(
+                    'Help',
+                    'Say "help" — voice commands will be added later.',
+                  ),
+                  icon: const Icon(Icons.help_outline, size: 20),
+                  label: const Text('Help'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.blueAccent,
+                    textStyle: const TextStyle(fontSize: 16),
+                  ),
                 ),
               ],
             ),
