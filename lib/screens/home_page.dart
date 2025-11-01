@@ -16,7 +16,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with RouteAware {
   final FlutterTts _flutterTts = FlutterTts();
-  bool _isNavigating = false; // Prevent multiple navigations
+  bool _isNavigating = false;
 
   @override
   void initState() {
@@ -38,17 +38,11 @@ class _HomePageState extends State<HomePage> with RouteAware {
     ).showSnackBar(SnackBar(content: Text('$title — $subtitle')));
   }
 
-  void _resumeListening() {
-    if (mounted) setState(() {});
-  }
-
-  // Wrap navigation to prevent multiple triggers
   Future<void> _navigateOnce(Future<void> Function() action) async {
     if (_isNavigating) return;
     _isNavigating = true;
     await action();
     _isNavigating = false;
-    _resumeListening();
   }
 
   void _onReadNotes() {
@@ -81,7 +75,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
     });
   }
 
-  void _onUploadNotes({bool fromVoice = false}) {
+  void _onUploadNotes() {
     _navigateOnce(() async {
       await Navigator.push(
         context,
@@ -141,10 +135,10 @@ class _HomePageState extends State<HomePage> with RouteAware {
               children: [
                 InkWell(
                   onTap: () {
-                    const message =
-                        'OpenEar — voice-first learning for visually impaired learners. Main actions: Read Notes, Ask Question, Start Quiz, Progress, Upload Notes.';
                     _showInfo('Welcome', 'Tap buttons or use your voice.');
-                    _speak(message);
+                    _speak(
+                      'OpenEar — voice-first learning for visually impaired learners. Main actions include: Read Notes, Ask Question, Start Quiz, View Progress, and Upload Notes.',
+                    );
                   },
                   child: Container(
                     width: double.infinity,
@@ -168,7 +162,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
                 ),
                 const SizedBox(height: 12),
                 _buildActionButton(
-                  label: 'Ask Question (Voice)',
+                  label: 'Ask Question',
                   icon: Icons.mic,
                   onPressed: _onAskQuestion,
                   color: Colors.deepPurple,
@@ -191,7 +185,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
                 _buildActionButton(
                   label: 'Upload Files',
                   icon: Icons.upload_file,
-                  onPressed: () => _onUploadNotes(fromVoice: false),
+                  onPressed: _onUploadNotes,
                   color: Colors.green.shade700,
                 ),
                 const SizedBox(height: 24),
@@ -211,13 +205,12 @@ class _HomePageState extends State<HomePage> with RouteAware {
                         _onProgress();
                         break;
                       case 'upload_notes':
-                        _onUploadNotes(fromVoice: true);
+                        _onUploadNotes();
                         break;
                     }
                   },
                   speak: _speak,
                 ),
-                const SizedBox(height: 6),
                 TextButton.icon(
                   onPressed: () => _showInfo(
                     'Help',

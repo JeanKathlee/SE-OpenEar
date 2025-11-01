@@ -28,7 +28,7 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
   DateTime _lastCommandTime = DateTime.now();
   final Duration _debounceDuration = const Duration(seconds: 1);
 
-  bool _isNavigating = false; // Prevent double command triggers
+  bool _isNavigating = false; // Prevents double triggers
 
   @override
   void initState() {
@@ -49,18 +49,24 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
     super.dispose();
   }
 
+  // Called when navigating away from this route
   @override
   void didPushNext() {
     _stopListening(resetState: true);
   }
 
+  // Called when returning to this route
   @override
   void didPopNext() {
-    setState(() {
-      _isListening = _voiceService.isListening;
-      _isMuted = false;
-      _lastCommand = null;
-      _isNavigating = false; // reset when coming back
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      setState(() {
+        _isNavigating = false;
+        _isMuted = false;
+        _lastCommand = null;
+      });
+      // Restart listening only after a short delay
+      _startListening();
     });
   }
 
@@ -78,10 +84,10 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
   }
 
   Future<void> _startListening() async {
-    if (_isMuted || _voiceService.isListening) return;
+    if (_isMuted || _voiceService.isListening || _isNavigating) return;
 
-    await _voiceService.startListening((recognizedWords) {
-      if (_isMuted) return;
+    await _voiceService.startListening((recognizedWords) async {
+      if (_isMuted || _isNavigating) return;
 
       final command = _voiceService.processCommand(recognizedWords);
       if (command.isEmpty) return;
@@ -89,19 +95,22 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
       final now = DateTime.now();
       if (_lastCommand == command &&
           now.difference(_lastCommandTime) < _debounceDuration) {
-        return;
+        return; // prevent double trigger
       }
 
-      if (_isNavigating) return; // prevent multiple triggers during navigation
       _isNavigating = true;
-
       _lastCommand = command;
       _lastCommandTime = now;
-      widget.onCommandRecognized(command);
 
-      // Reset navigating after small delay to allow next command
+      // Stop listening before navigation to prevent echo commands
+      await _voiceService.stopListening();
+
+      // Handle command
+      await widget.onCommandRecognized(command);
+
+      // Allow reactivation after navigation settles
       Future.delayed(const Duration(seconds: 1), () {
-        _isNavigating = false;
+        if (mounted) _isNavigating = false;
       });
     }, autoRestart: true);
 

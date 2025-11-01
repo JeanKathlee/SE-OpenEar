@@ -9,7 +9,10 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
+<<<<<<< Updated upstream
 // ...existing code...
+=======
+>>>>>>> Stashed changes
 
 class UploadNotes extends StatefulWidget {
   const UploadNotes({super.key});
@@ -32,7 +35,7 @@ class _UploadNotesState extends State<UploadNotes> {
   void initState() {
     super.initState();
     _initializeTTS();
-    _announceScreen();
+    _announceEntry();
   }
 
   Future<void> _initializeTTS() async {
@@ -40,9 +43,14 @@ class _UploadNotesState extends State<UploadNotes> {
     await _tts.setSpeechRate(0.6);
   }
 
-  Future<void> _announceScreen() async {
+  Future<void> _announceEntry() async {
     await _tts.stop();
-    await _tts.speak('You are now in the Upload Notes screen.');
+    await _tts.speak("You are now in the Upload Notes screen.");
+  }
+
+  Future<void> _announceExit() async {
+    await _tts.stop();
+    await _tts.speak("Closing Upload Notes screen.");
   }
 
   // MANUAL FILE PICKER
@@ -440,15 +448,16 @@ class _UploadNotesState extends State<UploadNotes> {
 
   @override
   void dispose() {
-    _tts.stop();
-    _speech.cancel();
+    // _tts.stop();
     _speech.stop();
+    _speech.cancel();
     _spokenInputController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+<<<<<<< Updated upstream
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -489,11 +498,43 @@ class _UploadNotesState extends State<UploadNotes> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
+=======
+    return PopScope(
+      onPopInvoked: (didPop) async {
+        if (didPop) {
+          try {
+            // Do NOT await — let speech continue naturally
+            _tts.speak('Closing Upload Notes screen.');
+          } catch (_) {} // announces "Closing Upload Notes screen."
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: const Text(
+            'Upload Notes',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.deepPurpleAccent,
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                const Text(
+                  'Upload notes manually or use voice to navigate to local files.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
+>>>>>>> Stashed changes
                   ),
-                  onPressed: () => _pickFile(),
-                  icon: const Icon(Icons.upload_file, size: 28),
-                  label: const Text('Upload Manually'),
                 ),
+<<<<<<< Updated upstream
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -521,43 +562,79 @@ class _UploadNotesState extends State<UploadNotes> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton.icon(
+=======
+                const SizedBox(height: 30),
+                SizedBox(
+                  width: double.infinity,
+                  height: 60,
+                  child: ElevatedButton.icon(
+>>>>>>> Stashed changes
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
+                      backgroundColor: Colors.deepPurpleAccent,
                       foregroundColor: Colors.white,
                       textStyle: const TextStyle(
+<<<<<<< Updated upstream
                         fontSize: 16,
+=======
+                        fontSize: 18,
+>>>>>>> Stashed changes
                         fontWeight: FontWeight.bold,
                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      minimumSize: const Size(120, 50),
                     ),
-                    onPressed: () async {
-                      await _tts.stop();
-                      setState(() => _isPaused = false);
-                    },
-                    icon: const Icon(Icons.stop, size: 24),
-                    label: const Text('Stop'),
+                    onPressed: () => _pickFile(),
+                    icon: const Icon(Icons.upload_file, size: 28),
+                    label: const Text('Upload Manually'),
                   ),
-                  const SizedBox(width: 16),
-                  ElevatedButton.icon(
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 60,
+                  child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orangeAccent,
+                      backgroundColor: Colors.greenAccent,
                       foregroundColor: Colors.white,
                       textStyle: const TextStyle(
+<<<<<<< Updated upstream
                         fontSize: 16,
+=======
+                        fontSize: 18,
+>>>>>>> Stashed changes
                         fontWeight: FontWeight.bold,
                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      minimumSize: const Size(120, 50),
                     ),
-                    onPressed: () async {
-                      if (_isPaused) {
-                        await _tts.speak(_lastSpokenText);
+                    onPressed: _startVoiceFlow,
+                    icon: const Icon(Icons.mic, size: 28),
+                    label: const Text('Use Voice to Navigate'),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        minimumSize: const Size(120, 50),
+                      ),
+                      onPressed: () async {
+                        await _tts.stop();
                         setState(() => _isPaused = false);
+<<<<<<< Updated upstream
                       } else {
                         await _tts.pause();
                         setState(() => _isPaused = true);
@@ -572,6 +649,45 @@ class _UploadNotesState extends State<UploadNotes> {
                 ],
               ),
             ],
+=======
+                      },
+                      icon: const Icon(Icons.stop, size: 24),
+                      label: const Text('Stop'),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orangeAccent,
+                        foregroundColor: Colors.white,
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        minimumSize: const Size(120, 50),
+                      ),
+                      onPressed: () async {
+                        if (_isPaused) {
+                          await _tts.speak(_lastSpokenText);
+                          setState(() => _isPaused = false);
+                        } else {
+                          await _tts.pause();
+                          setState(() => _isPaused = true);
+                        }
+                      },
+                      icon: Icon(
+                        _isPaused ? Icons.play_arrow : Icons.pause,
+                        size: 24,
+                      ),
+                      label: Text(_isPaused ? 'Resume' : 'Pause'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+>>>>>>> Stashed changes
           ),
         ),
       ),

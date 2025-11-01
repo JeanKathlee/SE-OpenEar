@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'dart:async';
 
 class StartQuiz {
   static Future<void> show(BuildContext context) async {
     final FlutterTts flutterTts = FlutterTts();
 
-    // Speak when the dialog opens
+    // Setup TTS
     await flutterTts.setLanguage("en-US");
     await flutterTts.setPitch(1.0);
     await flutterTts.setSpeechRate(0.7);
-    await flutterTts.speak("You are now in Start Quiz screen.");
+    await flutterTts.awaitSpeakCompletion(false);
+
+    // Speak simultaneously with showing dialog
+    flutterTts.speak("You are now in the Start Quiz screen.");
 
     await showDialog(
       context: context,
-      barrierDismissible: true,
+      barrierDismissible: false,
       builder: (context) {
         return Dialog(
           shape: RoundedRectangleBorder(
@@ -42,13 +46,10 @@ class StartQuiz {
                 const SizedBox(height: 20),
                 GestureDetector(
                   onTap: () async {
-                    // Example: show snackbar or start speech-to-text
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("Listening... 🎤")),
                     );
-
-                    // Optional: speak a prompt
-                    await flutterTts.speak("Listening...");
+                    flutterTts.speak("Listening...");
                   },
                   child: Container(
                     padding: const EdgeInsets.all(20),
@@ -62,9 +63,11 @@ class StartQuiz {
                 const SizedBox(height: 15),
                 TextButton(
                   onPressed: () async {
-                    Navigator.pop(context);
-                    // Optional: speak when closing
+                    // Stop any ongoing speech, then say closed
+                    await flutterTts.stop();
+                    await Future.delayed(const Duration(milliseconds: 200));
                     await flutterTts.speak("Quiz closed.");
+                    Navigator.pop(context);
                   },
                   child: const Text("Close"),
                 ),

@@ -1,22 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'dart:async';
 
 class AskQuestionsPopup {
   static Future<void> show(BuildContext context) async {
     final FlutterTts flutterTts = FlutterTts();
 
-    // Speak when the dialog opens
+    // Setup TTS
     await flutterTts.setLanguage("en-US");
     await flutterTts.setPitch(1.0);
     await flutterTts.setSpeechRate(0.7);
-    await flutterTts.speak("You are now in Ask Question screen.");
+    await flutterTts.awaitSpeakCompletion(false);
 
-    // Text controller for optional input
+    // Speak simultaneously with showing dialog
+    flutterTts.speak("You are now in the Ask Questions screen.");
+
     TextEditingController controller = TextEditingController();
 
     await showDialog(
       context: context,
-      barrierDismissible: true,
+      barrierDismissible: false,
       builder: (context) {
         return Dialog(
           shape: RoundedRectangleBorder(
@@ -45,13 +48,10 @@ class AskQuestionsPopup {
                 const SizedBox(height: 20),
                 GestureDetector(
                   onTap: () async {
-                    // Example: show snackbar or start speech-to-text
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("Listening... 🎤")),
                     );
-
-                    // Optional: speak a prompt
-                    await flutterTts.speak("Listening...");
+                    flutterTts.speak("Listening...");
                   },
                   child: Container(
                     padding: const EdgeInsets.all(20),
@@ -65,9 +65,11 @@ class AskQuestionsPopup {
                 const SizedBox(height: 15),
                 TextButton(
                   onPressed: () async {
-                    Navigator.pop(context);
-                    // Optional: speak when closing
+                    // Stop current speech safely, then announce closure
+                    await flutterTts.stop();
+                    await Future.delayed(const Duration(milliseconds: 200));
                     await flutterTts.speak("Questions closed.");
+                    Navigator.pop(context);
                   },
                   child: const Text("Close"),
                 ),
