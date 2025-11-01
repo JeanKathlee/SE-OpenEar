@@ -6,7 +6,6 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
-// ...existing code...
 
 class ReadNotesScreen extends StatefulWidget {
   const ReadNotesScreen({super.key});
@@ -21,6 +20,7 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
 
   bool _hasAnnounced = false;
   bool _isSpeaking = false;
+  bool _isClosing = false;
   bool _loading = true;
   List<Map<String, dynamic>> _notes = [];
 
@@ -33,6 +33,12 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _hasAnnounced = false;
+  }
+
   Future<void> _announce() async {
     if (_hasAnnounced || _isSpeaking) return;
     _isSpeaking = true;
@@ -41,6 +47,7 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
     await _tts.stop();
     await _tts.setLanguage('en-US');
     await _tts.setSpeechRate(0.6);
+    await _tts.setPitch(1.0);
     await _tts.awaitSpeakCompletion(true);
 
     await _tts.speak(
@@ -53,9 +60,7 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
   }
 
   Future<void> _loadSavedNotes() async {
-    setState(() {
-      _loading = true;
-    });
+    setState(() => _loading = true);
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final notesDir = Directory(
@@ -64,20 +69,19 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
       if (!await notesDir.exists()) {
         await notesDir.create(recursive: true);
       }
+
       final files = notesDir.listSync().whereType<File>().toList();
       final List<Map<String, dynamic>> loaded = [];
+
       for (final f in files) {
         try {
           final content = await f.readAsString();
           final map = jsonDecode(content) as Map<String, dynamic>;
           map['__path'] = f.path;
           loaded.add(map);
-        } catch (e) {
-          debugPrint('Failed to read note file ${f.path}: $e');
-        }
+        } catch (_) {}
       }
 
-      // Dedupe by title (case-insensitive)
       final Map<String, Map<String, dynamic>> uniqueByTitle = {};
       for (final m in loaded) {
         final titleKey = (m['title'] ?? 'untitled')
@@ -86,46 +90,23 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
             .trim();
         if (!uniqueByTitle.containsKey(titleKey)) {
           uniqueByTitle[titleKey] = m;
-        } else {
-          try {
-            final existing = uniqueByTitle[titleKey]!;
-            final existingCreated =
-                DateTime.tryParse(existing['created'] ?? '') ??
-                DateTime.fromMillisecondsSinceEpoch(0);
-            final thisCreated =
-                DateTime.tryParse(m['created'] ?? '') ??
-                DateTime.fromMillisecondsSinceEpoch(0);
-            if (thisCreated.isAfter(existingCreated)) {
-              uniqueByTitle[titleKey] = m;
-            }
-          } catch (_) {}
         }
       }
 
-      finalListToSetState(uniqueByTitle);
-    } catch (e) {
-      debugPrint('Error loading saved notes: $e');
+      final finalList = uniqueByTitle.values.toList()
+        ..sort((a, b) {
+          final aCreated = DateTime.tryParse(a['created'] ?? '') ?? DateTime(0);
+          final bCreated = DateTime.tryParse(b['created'] ?? '') ?? DateTime(0);
+          return bCreated.compareTo(aCreated);
+        });
+
       setState(() {
+        _notes = finalList;
         _loading = false;
       });
+    } catch (_) {
+      setState(() => _loading = false);
     }
-  }
-
-  void finalListToSetState(Map<String, Map<String, dynamic>> uniqueByTitle) {
-    final finalList = uniqueByTitle.values.toList();
-    finalList.sort((a, b) {
-      final aCreated =
-          DateTime.tryParse(a['created'] ?? '') ??
-          DateTime.fromMillisecondsSinceEpoch(0);
-      final bCreated =
-          DateTime.tryParse(b['created'] ?? '') ??
-          DateTime.fromMillisecondsSinceEpoch(0);
-      return bCreated.compareTo(aCreated);
-    });
-    setState(() {
-      _notes = finalList;
-      _loading = false;
-    });
   }
 
   Future<void> _speakNote(Map<String, dynamic> note) async {
@@ -136,19 +117,20 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
     }
     await _tts.stop();
     await _tts.setSpeechRate(0.45);
+    await _tts.setPitch(1.0);
+    await _tts.awaitSpeakCompletion(true);
     await _tts.speak(text);
   }
 
   Future<bool> _requestMicPermission() async {
     final status = await Permission.microphone.request();
     if (status != PermissionStatus.granted) {
-      await _tts.speak("Microphone permission is required.");
+      await _tts.speak('Microphone permission is required.');
       return false;
     }
     return true;
   }
 
-  // Normalize string: lowercase, remove non-alphanum, collapse spaces
   String _normalize(String s) {
     return s
         .toLowerCase()
@@ -157,62 +139,46 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
         .trim();
   }
 
-  // Returns true if title and query match reasonably (substrings or all query tokens present)
   bool _matchesTitle(String title, String query) {
     final nTitle = _normalize(title);
     final nQuery = _normalize(query);
     if (nQuery.isEmpty) return false;
     if (nTitle.contains(nQuery)) return true;
+
     final queryTokens = nQuery.split(' ');
     final titleTokens = nTitle.split(' ');
-    // check if all query tokens appear in title tokens
-    final allPresent = queryTokens.every(
-      (t) => titleTokens.any((tt) => tt.contains(t)),
-    );
-    if (allPresent) return true;
-    // fallback: at least one token match
-    final anyPresent = queryTokens.any(
-      (t) => titleTokens.any((tt) => tt.contains(t)),
-    );
-    return anyPresent;
+    return queryTokens.every((t) => titleTokens.any((tt) => tt.contains(t)));
   }
 
-  // Listen up to 10s, accept partial if timeout occurs
   Future<void> _listenAndPlay() async {
     final ok = await _requestMicPermission();
     if (!ok) return;
 
-    final available = await _speech.initialize(
-      onStatus: (status) => debugPrint('Speech status: $status'),
-      onError: (err) => debugPrint('Speech error: $err'),
-    );
+    final available = await _speech.initialize();
     if (!available) {
       await _tts.speak('Speech recognition not available.');
       return;
     }
 
-    String heard = '';
-    bool finalReceived = false;
-    final completer = Completer<void>();
-
-    // make TTS block until finished so microphone is free after announcement
     await _tts.stop();
     await _tts.setLanguage('en-US');
     await _tts.setSpeechRate(0.6);
+    await _tts.setPitch(1.0);
     await _tts.awaitSpeakCompletion(true);
     await _tts.speak(
       'Which file would you like me to read? Say part of the file name after the beep.',
     );
 
-    // small delay so system is ready
-    await Future.delayed(const Duration(milliseconds: 350));
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    String heard = '';
+    bool finalReceived = false;
+    final completer = Completer<void>();
 
     _speech.listen(
       onResult: (result) {
-        final recognized = result.recognizedWords?.trim() ?? '';
-        if (recognized.isNotEmpty) {
-          heard = recognized;
-        }
+        final recognized = result.recognizedWords.trim();
+        if (recognized.isNotEmpty) heard = recognized;
         if (result.finalResult && !finalReceived) {
           finalReceived = true;
           if (!completer.isCompleted) completer.complete();
@@ -222,23 +188,28 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
       partialResults: true,
     );
 
-    // Wait for either final recognition or a 10 second timeout
-    final timeout = Future.delayed(const Duration(seconds: 10));
-    await Future.any([completer.future, timeout]);
+    await Future.any([
+      completer.future,
+      Future.delayed(const Duration(seconds: 10)),
+    ]);
 
-    // stop listening
     try {
       await _speech.stop();
     } catch (_) {}
 
-    // If we didn't get anything at all -> report no voice
     if (heard.trim().isEmpty) {
-      await _tts.speak('no voice detected');
+      await _tts.speak('No voice detected.');
       return;
     }
 
-    // try to match note
     final query = heard.toLowerCase();
+    if (query.contains('go back') ||
+        query.contains('exit') ||
+        query.contains('close')) {
+      await _handleExit(); // ✅ identical voice behavior as back button
+      return;
+    }
+
     Map<String, dynamic>? found;
     for (final n in _notes) {
       final title = (n['title'] ?? '').toString();
@@ -257,6 +228,27 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
     await _speakNote(found);
   }
 
+  Future<void> _handleExit() async {
+    if (_isClosing) return;
+    _isClosing = true;
+
+    await _tts.stop();
+    await _tts.setLanguage('en-US');
+    await _tts.setSpeechRate(0.6);
+    await _tts.setPitch(1.0);
+    await _tts.awaitSpeakCompletion(true);
+
+    final completer = Completer<void>();
+    _tts.setCompletionHandler(() {
+      if (!completer.isCompleted) completer.complete();
+    });
+
+    await _tts.speak('Closing Read Notes screen.');
+    await completer.future;
+
+    if (mounted) Navigator.of(context).pop();
+  }
+
   @override
   void dispose() {
     _tts.stop();
@@ -266,66 +258,68 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Read Notes'),
-        backgroundColor: Colors.teal.shade700,
-        foregroundColor: Colors.white,
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
+    return PopScope(
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        await _handleExit();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Read Notes'),
+          backgroundColor: Colors.teal.shade700,
+          foregroundColor: Colors.white,
+        ),
+        body: SafeArea(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
-              : (_notes.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No notes available. Upload or add new notes first.',
-                          style: TextStyle(fontSize: 18, color: Colors.black54),
-                          textAlign: TextAlign.center,
+              : _notes.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No notes available. Upload or add new notes first.',
+                    style: TextStyle(fontSize: 18, color: Colors.black54),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _notes.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final note = _notes[index];
+                    final title = (note['title'] ?? 'Untitled').toString();
+                    return Card(
+                      color: Colors.teal.shade600,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 3,
+                      child: ListTile(
+                        title: Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            color: Colors.white,
+                          ),
                         ),
-                      )
-                    : ListView.separated(
-                        itemCount: _notes.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final note = _notes[index];
-                          final title = (note['title'] ?? 'Untitled')
-                              .toString();
-                          return Card(
-                            color: Colors.teal.shade600,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 3,
-                            child: ListTile(
-                              title: Text(
-                                title,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              trailing: const Icon(
-                                Icons.volume_up,
-                                color: Colors.white,
-                              ),
-                              onTap: () async {
-                                await _tts.speak('Playing $title');
-                                await _speakNote(note);
-                              },
-                            ),
-                          );
+                        trailing: const Icon(
+                          Icons.volume_up,
+                          color: Colors.white,
+                        ),
+                        onTap: () async {
+                          await _tts.speak('Playing $title');
+                          await _speakNote(note);
                         },
-                      )),
+                      ),
+                    );
+                  },
+                ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _listenAndPlay,
-        child: const Icon(Icons.mic),
-        tooltip: 'Say file name to read',
+        floatingActionButton: FloatingActionButton(
+          onPressed: _listenAndPlay,
+          child: const Icon(Icons.mic),
+          tooltip: 'Say file name to read',
+        ),
       ),
     );
   }
 }
-// ...existing code...
