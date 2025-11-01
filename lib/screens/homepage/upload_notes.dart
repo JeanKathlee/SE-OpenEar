@@ -1,4 +1,3 @@
-// ...existing code...
 import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive_io.dart';
@@ -9,10 +8,6 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
-<<<<<<< Updated upstream
-// ...existing code...
-=======
->>>>>>> Stashed changes
 
 class UploadNotes extends StatefulWidget {
   const UploadNotes({super.key});
@@ -30,30 +25,50 @@ class _UploadNotesState extends State<UploadNotes> {
   String _lastWords = '';
   String _lastSpokenText = '';
   bool _isPaused = false;
+  static bool _hasSpoken = false;
+  bool _isClosing = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeTTS();
-    _announceEntry();
+    _setupTts();
+    _announceScreen();
   }
 
-  Future<void> _initializeTTS() async {
+  Future<void> _setupTts() async {
     await _tts.setLanguage('en-US');
     await _tts.setSpeechRate(0.6);
+    await _tts.awaitSpeakCompletion(true);
   }
 
-  Future<void> _announceEntry() async {
-    await _tts.stop();
-    await _tts.speak("You are now in the Upload Notes screen.");
+  /// Announce entering the Upload Notes screen
+  Future<void> _announceScreen() async {
+    if (_hasSpoken) return;
+    _hasSpoken = true;
+    try {
+      await _tts.stop();
+      await _tts.speak('You are now in the Upload Notes screen.');
+    } catch (_) {}
   }
 
-  Future<void> _announceExit() async {
-    await _tts.stop();
-    await _tts.speak("Closing Upload Notes screen.");
+  /// Handle back button press
+  Future<bool> _onWillPop() async {
+    if (_isClosing) return false;
+    _isClosing = true;
+
+    try {
+      await _tts.stop(); // stop current speech
+      await Future.delayed(const Duration(milliseconds: 100)); // short buffer
+      _tts.speak('Upload Notes screen closed.');
+    } catch (_) {}
+
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+    return false;
   }
 
-  // MANUAL FILE PICKER
+  // ------------------- EXISTING FUNCTIONS BELOW -------------------
   Future<void> _pickFile() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -97,14 +112,6 @@ class _UploadNotesState extends State<UploadNotes> {
       final extension = file.path.split('.').last.toLowerCase();
       String? extractedText;
 
-      // derive a friendly title from filename (without extension)
-      String title = file.path.split(Platform.pathSeparator).last;
-      title = title
-          .replaceAll(RegExp(r'\.\w+$'), '')
-          .replaceAll('_', ' ')
-          .trim();
-
-      // --- Handle PDF files ---
       if (extension == 'pdf') {
         await _tts.speak("Reading your PDF file, please wait.");
         final bytes = await file.readAsBytes();
@@ -114,6 +121,7 @@ class _UploadNotesState extends State<UploadNotes> {
 
         extractedText = extractedText
             .replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '')
+            .replaceAll(RegExp(r'(?<=[a-zA-Z])\s(?=[a-zA-Z])'), '')
             .replaceAll(RegExp(r'\s+'), ' ')
             .replaceAll(RegExp(r'\s([.,!?])'), r'\1')
             .trim();
@@ -125,14 +133,9 @@ class _UploadNotesState extends State<UploadNotes> {
           return;
         }
 
-        debugPrint(
-          "PDF content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
-        );
-        await _saveNote(title, extractedText);
+        debugPrint("PDF content extracted: $extractedText");
         await _speakText(extractedText);
-      }
-      // --- Handle DOCX files ---
-      else if (extension == 'docx') {
+      } else if (extension == 'docx') {
         await _tts.speak("Reading your Word document, please wait.");
         extractedText = await _extractTextFromDocx(file);
 
@@ -144,14 +147,9 @@ class _UploadNotesState extends State<UploadNotes> {
         }
 
         extractedText = extractedText.replaceAll(RegExp(r'\s+'), ' ').trim();
-        debugPrint(
-          "DOCX content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
-        );
-        await _saveNote(title, extractedText);
+        debugPrint("DOCX content extracted: $extractedText");
         await _speakText(extractedText);
-      }
-      // --- Handle TXT files ---
-      else if (extension == 'txt') {
+      } else if (extension == 'txt') {
         await _tts.speak("Reading your text file.");
         extractedText = await file.readAsString();
 
@@ -161,14 +159,9 @@ class _UploadNotesState extends State<UploadNotes> {
         }
 
         extractedText = extractedText.replaceAll(RegExp(r'\s+'), ' ').trim();
-        debugPrint(
-          "Text file content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
-        );
-        await _saveNote(title, extractedText);
+        debugPrint("Text file content extracted: $extractedText");
         await _speakText(extractedText);
-      }
-      // --- Unsupported types ---
-      else {
+      } else {
         await _tts.speak(
           "Unsupported file type. Please select a PDF, Word, or text file.",
         );
@@ -180,7 +173,139 @@ class _UploadNotesState extends State<UploadNotes> {
     }
   }
 
-  // VOICE SEARCH FILE PICKER (Recursive version)
+  Future<String?> _extractTextFromDocx(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final xmlFile = archive.firstWhere(
+        (f) => f.name.toLowerCase().contains('word/document.xml'),
+        orElse: () => throw Exception('document.xml not found'),
+      );
+      final xmlContent = utf8.decode(xmlFile.content as List<int>);
+      final text = xmlContent
+          .replaceAll(RegExp(r'<[^>]+>'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      return text;
+    } catch (e) {
+      debugPrint(' DOCX extract error: $e');
+      return 'Could not extract DOCX text: $e';
+    }
+  }
+
+  Future<void> _speakText(String text) async {
+    _lastSpokenText = text;
+    await _tts.stop();
+    await _tts.setSpeechRate(0.45);
+    await _tts.speak(text);
+    if (mounted) setState(() => _isPaused = false);
+  }
+
+  Future<bool> _requestMicPermission() async {
+    final status = await Permission.microphone.request();
+    if (status != PermissionStatus.granted) {
+      await _tts.speak(
+        "Microphone permission is required to use voice navigation.",
+      );
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _startVoiceFlow() async {
+    final micGranted = await _requestMicPermission();
+    if (!micGranted) {
+      await _tts.speak('Microphone permission is required.');
+      return;
+    }
+
+    final available = await _speech.initialize(
+      onStatus: (status) => debugPrint('Speech status: $status'),
+      onError: (errorNotification) =>
+          debugPrint('Speech error: ${errorNotification.errorMsg}'),
+    );
+
+    if (!available) {
+      await _tts.speak('Speech recognition not available');
+      return;
+    }
+
+    _lastWords = '';
+    setState(() => _listening = true);
+
+    _speech.listen(
+      onResult: (result) {
+        if (result.finalResult) {
+          setState(() {
+            _lastWords = result.recognizedWords;
+          });
+          debugPrint('Heard final: $_lastWords');
+        }
+      },
+      localeId: 'en_US',
+      partialResults: true,
+      onDevice: false,
+    );
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          backgroundColor: Colors.black87,
+          title: const Text(
+            'Voice Navigate',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Say part of the file name, then press Stop.',
+                style: TextStyle(color: Colors.white),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              _lastWords.isEmpty
+                  ? const Icon(Icons.mic, size: 48, color: Colors.greenAccent)
+                  : Text(
+                      'Heard: \"$_lastWords\"',
+                      style: const TextStyle(color: Colors.yellowAccent),
+                    ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await _speech.stop();
+                setState(() {
+                  _listening = false;
+                });
+                Navigator.of(context).pop();
+                if (_lastWords.trim().isEmpty) {
+                  await _tts.speak("No spoken input detected.");
+                } else {
+                  await _pickFileWithDirs(_lastWords);
+                }
+              },
+              child: const Text('Stop'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await _speech.stop();
+                setState(() => _listening = false);
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickFileWithDirs(String spoken) async {
     try {
       final storageStatus = await Permission.storage.request();
@@ -241,7 +366,6 @@ class _UploadNotesState extends State<UploadNotes> {
       );
 
       debugPrint("Found files: ${foundFiles.map((f) => f.path).toList()}");
-
       await _handlePickedFile(File(firstMatch.path));
     } catch (e) {
       debugPrint('⚠️ Voice search error: $e');
@@ -254,260 +378,20 @@ class _UploadNotesState extends State<UploadNotes> {
     }
   }
 
-  //  Extract text from DOCX
-  Future<String?> _extractTextFromDocx(File file) async {
-    try {
-      final bytes = await file.readAsBytes();
-      final archive = ZipDecoder().decodeBytes(bytes);
-
-      final xmlFile = archive.firstWhere(
-        (f) => f.name.toLowerCase().contains('word/document.xml'),
-        orElse: () => throw Exception('document.xml not found'),
-      );
-
-      final xmlContent = utf8.decode(xmlFile.content as List<int>);
-
-      final text = xmlContent
-          .replaceAll(RegExp(r'<[^>]+>'), ' ')
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim();
-
-      return text;
-    } catch (e) {
-      debugPrint(' DOCX extract error: $e');
-      return 'Could not extract DOCX text: $e';
-    }
-  }
-
-  Future<void> _speakText(String text) async {
-    _lastSpokenText = text;
-    await _tts.stop();
-    await _tts.setSpeechRate(0.45);
-    await _tts.speak(text);
-    if (mounted) setState(() => _isPaused = false);
-  }
-
-  Future<bool> _requestMicPermission() async {
-    final status = await Permission.microphone.request();
-    if (status != PermissionStatus.granted) {
-      await _tts.speak(
-        "Microphone permission is required to use voice navigation.",
-      );
-      return false;
-    }
-    return true;
-  }
-
-  // START VOICE FLOW
-  Future<void> _startVoiceFlow() async {
-    final micGranted = await _requestMicPermission();
-    if (!micGranted) {
-      await _tts.speak('Microphone permission is required.');
-      return;
-    }
-
-    final available = await _speech.initialize(
-      onStatus: (status) => debugPrint('Speech status: $status'),
-      onError: (errorNotification) =>
-          debugPrint('Speech error: ${errorNotification.errorMsg}'),
-    );
-
-    if (!available) {
-      await _tts.speak('Speech recognition not available');
-      return;
-    }
-
-    _lastWords = '';
-    setState(() => _listening = true);
-
-    _speech.listen(
-      onResult: (result) {
-        if (result.finalResult) {
-          setState(() {
-            _lastWords = result.recognizedWords;
-          });
-          debugPrint('Heard final: $_lastWords');
-        }
-      },
-      localeId: 'en_US',
-      partialResults: true,
-      onDevice: false,
-    );
-
-    if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          backgroundColor: Colors.black87,
-          title: const Text(
-            'Voice Navigate',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Say part of the file name, then press Stop.',
-                style: TextStyle(color: Colors.white),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              _lastWords.isEmpty
-                  ? const Icon(Icons.mic, size: 48, color: Colors.greenAccent)
-                  : Text(
-                      'Heard: "${_lastWords}"',
-                      style: const TextStyle(color: Colors.yellowAccent),
-                    ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                await _speech.stop();
-                setState(() {
-                  _listening = false;
-                });
-                Navigator.of(context).pop();
-                if (_lastWords.trim().isEmpty) {
-                  await _tts.speak("No spoken input detected.");
-                } else {
-                  await _pickFileWithDirs(_lastWords);
-                }
-              },
-              child: const Text('Stop'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await _speech.stop();
-                setState(() => _listening = false);
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // NEW: Save note to app documents (saved_notes folder)
-  Future<void> _saveNote(String title, String content) async {
-    try {
-      final appDir = await getApplicationDocumentsDirectory();
-      final notesDir = Directory(
-        '${appDir.path}${Platform.pathSeparator}saved_notes',
-      );
-      if (!await notesDir.exists()) await notesDir.create(recursive: true);
-
-      // load existing notes and check for duplicates (by title or exact content)
-      final existingFiles = notesDir.listSync().whereType<File>().toList();
-      for (final f in existingFiles) {
-        try {
-          final map =
-              jsonDecode(await f.readAsString()) as Map<String, dynamic>;
-          final existingTitle = (map['title'] ?? '').toString();
-          final existingContent = (map['content'] ?? '').toString();
-          if (existingTitle.toLowerCase() == title.toLowerCase() ||
-              existingContent == content) {
-            await _tts.speak(
-              'This note already exists. It will not be added again.',
-            );
-            debugPrint('Duplicate note detected, skipping save: ${f.path}');
-            return;
-          }
-        } catch (e) {
-          debugPrint('Error reading existing note ${f.path}: $e');
-        }
-      }
-
-      final safeTitle = title.isNotEmpty
-          ? title.replaceAll(RegExp(r'[^\w\s\-]'), '').replaceAll(' ', '_')
-          : 'note';
-      final filename =
-          '${DateTime.now().millisecondsSinceEpoch}_$safeTitle.json';
-      final file = File('${notesDir.path}${Platform.pathSeparator}$filename');
-
-      final map = {
-        'title': title,
-        'content': content,
-        'created': DateTime.now().toIso8601String(),
-      };
-      await file.writeAsString(jsonEncode(map));
-
-      await _tts.speak(
-        'Saved note $title. You can read it from the Read Notes screen.',
-      );
-      debugPrint('Saved note file: ${file.path}');
-    } catch (e) {
-      debugPrint('Error saving note: $e');
-    }
-  }
-
   @override
   void dispose() {
-    // _tts.stop();
-    _speech.stop();
+    _hasSpoken = false;
+    _tts.stop();
     _speech.cancel();
+    _speech.stop();
     _spokenInputController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-<<<<<<< Updated upstream
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text(
-          'Upload Notes',
-          style: TextStyle(color: Colors.white),
-        ),
-        backgroundColor: Colors.deepPurpleAccent,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              const Text(
-                'Upload notes manually or use voice to navigate to local files.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 20,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurpleAccent,
-                    foregroundColor: Colors.white,
-                    textStyle: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-=======
-    return PopScope(
-      onPopInvoked: (didPop) async {
-        if (didPop) {
-          try {
-            // Do NOT await — let speech continue naturally
-            _tts.speak('Closing Upload Notes screen.');
-          } catch (_) {} // announces "Closing Upload Notes screen."
-        }
-      },
+    return WillPopScope(
+      onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
@@ -531,53 +415,18 @@ class _UploadNotesState extends State<UploadNotes> {
                     fontSize: 20,
                     color: Colors.black87,
                     fontWeight: FontWeight.w500,
->>>>>>> Stashed changes
                   ),
                 ),
-<<<<<<< Updated upstream
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.greenAccent[700],
-                    foregroundColor: Colors.white,
-                    textStyle: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _startVoiceFlow,
-                  icon: const Icon(Icons.mic, size: 28),
-                  label: const Text('Use Voice to Navigate'),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton.icon(
-=======
                 const SizedBox(height: 30),
                 SizedBox(
                   width: double.infinity,
                   height: 60,
                   child: ElevatedButton.icon(
->>>>>>> Stashed changes
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.deepPurpleAccent,
                       foregroundColor: Colors.white,
                       textStyle: const TextStyle(
-<<<<<<< Updated upstream
-                        fontSize: 16,
-=======
                         fontSize: 18,
->>>>>>> Stashed changes
                         fontWeight: FontWeight.bold,
                       ),
                       shape: RoundedRectangleBorder(
@@ -595,14 +444,10 @@ class _UploadNotesState extends State<UploadNotes> {
                   height: 60,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.greenAccent,
+                      backgroundColor: Colors.greenAccent[700],
                       foregroundColor: Colors.white,
                       textStyle: const TextStyle(
-<<<<<<< Updated upstream
-                        fontSize: 16,
-=======
                         fontSize: 18,
->>>>>>> Stashed changes
                         fontWeight: FontWeight.bold,
                       ),
                       shape: RoundedRectangleBorder(
@@ -634,22 +479,6 @@ class _UploadNotesState extends State<UploadNotes> {
                       onPressed: () async {
                         await _tts.stop();
                         setState(() => _isPaused = false);
-<<<<<<< Updated upstream
-                      } else {
-                        await _tts.pause();
-                        setState(() => _isPaused = true);
-                      }
-                    },
-                    icon: Icon(
-                      _isPaused ? Icons.play_arrow : Icons.pause,
-                      size: 24,
-                    ),
-                    label: Text(_isPaused ? 'Resume' : 'Pause'),
-                  ),
-                ],
-              ),
-            ],
-=======
                       },
                       icon: const Icon(Icons.stop, size: 24),
                       label: const Text('Stop'),
@@ -687,7 +516,6 @@ class _UploadNotesState extends State<UploadNotes> {
                 ),
               ],
             ),
->>>>>>> Stashed changes
           ),
         ),
       ),
