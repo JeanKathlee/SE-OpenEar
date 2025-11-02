@@ -6,6 +6,8 @@ import '/screens/homepage/start_quiz.dart';
 import '/screens/homepage/progress.dart';
 import '/screens/homepage/upload_notes.dart';
 import '/widgets/voice_command_button.dart';
+import '/main.dart'; // to access routeObserver
+import '/services/voice_recognition_service.dart'; // ensure this file exists
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,6 +19,26 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with RouteAware {
   final FlutterTts _flutterTts = FlutterTts();
   bool _isNavigating = false;
+  final VoiceRecognitionService _voiceService = VoiceRecognitionService();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)!);
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  // ✅ Correctly placed outside dispose()
+  @override
+  void didPopNext() {
+    // When coming back to the homepage, stop listening
+    _voiceService.stopListening();
+  }
 
   @override
   void initState() {

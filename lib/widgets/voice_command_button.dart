@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/voice_recognition_service.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../main.dart'; // For routeObserver
+import '../services/voice_recognition_service.dart';
+import '../main.dart'; // for routeObserver
 
 class VoiceCommandButton extends StatefulWidget {
   final Function(String) onCommandRecognized;
@@ -23,12 +23,11 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
   final VoiceRecognitionService _voiceService = VoiceRecognitionService();
   bool _isListening = false;
   bool _isMuted = false;
+  bool _isNavigating = false;
 
   String? _lastCommand;
   DateTime _lastCommandTime = DateTime.now();
   final Duration _debounceDuration = const Duration(seconds: 1);
-
-  bool _isNavigating = false; // Prevents double triggers
 
   @override
   void initState() {
@@ -49,13 +48,13 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
     super.dispose();
   }
 
-  // Called when navigating away from this route
+  /// Called when pushing a new screen (navigating away)
   @override
   void didPushNext() {
     _stopListening(resetState: true);
   }
 
-  // Called when returning to this route
+  /// Called when returning to this screen
   @override
   void didPopNext() {
     Future.delayed(const Duration(milliseconds: 500), () {
@@ -64,18 +63,19 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
         _isNavigating = false;
         _isMuted = false;
         _lastCommand = null;
+        _isListening = false;
       });
-      // Restart listening only after a short delay
-      _startListening();
+      _voiceService.stopListening();
     });
   }
 
+  /// ✅ Request microphone permission + setup service
   Future<void> _setupVoiceService() async {
     final status = await Permission.microphone.request();
     if (!status.isGranted) return;
 
     _voiceService.onSilenceDetected = () async {
-      if (!_isMuted) {
+      if (!_isMuted && mounted) {
         await widget.speak("I'm still here. You can speak again.");
       }
     };
@@ -83,6 +83,7 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
     await _voiceService.initialize();
   }
 
+  /// ✅ Start voice listening and handle recognized commands
   Future<void> _startListening() async {
     if (_isMuted || _voiceService.isListening || _isNavigating) return;
 
@@ -105,7 +106,7 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
       // Stop listening before navigation to prevent echo commands
       await _voiceService.stopListening();
 
-      // Handle command
+      // Run the recognized command
       await widget.onCommandRecognized(command);
 
       // Allow reactivation after navigation settles
@@ -114,11 +115,16 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
       });
     }, autoRestart: true);
 
-    setState(() => _isListening = true);
+    if (mounted) {
+      setState(() => _isListening = true);
+    }
   }
 
+  /// ✅ Stop voice listening safely
   Future<void> _stopListening({bool resetState = false}) async {
     await _voiceService.stopListening();
+    if (!mounted) return;
+
     if (resetState) {
       _lastCommand = null;
       _lastCommandTime = DateTime.now();
@@ -132,6 +138,7 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
     }
   }
 
+  /// ✅ Toggle voice listening on/off
   void _toggleListening() {
     HapticFeedback.selectionClick();
 
@@ -146,10 +153,10 @@ class _VoiceCommandButtonState extends State<VoiceCommandButton>
       setState(() => _isMuted = !_isMuted);
       widget.speak(_isMuted ? 'Muted' : 'Unmuted');
 
-      if (!_isMuted) {
-        _startListening();
-      } else {
+      if (_isMuted) {
         _voiceService.stopListening();
+      } else {
+        _startListening();
       }
     }
   }

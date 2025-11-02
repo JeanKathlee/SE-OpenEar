@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import '/services/TTS_services.dart'; // ✅ Use shared TTS service
 
 class Progress extends StatefulWidget {
   const Progress({super.key});
@@ -9,57 +9,32 @@ class Progress extends StatefulWidget {
 }
 
 class _ProgressState extends State<Progress> {
-  final FlutterTts _tts = FlutterTts();
+  final TtsService tts = TtsService();
   bool _isClosing = false;
 
   @override
   void initState() {
     super.initState();
-    _setupTts();
-    _announce();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _announce());
   }
 
-  Future<void> _setupTts() async {
-    await _tts.setLanguage('en-US');
-    await _tts.setSpeechRate(0.6);
-    // Don’t await completion — we want speech to run independently
-    await _tts.awaitSpeakCompletion(false);
-  }
-
-  /// Always announce entering the Progress screen
   Future<void> _announce() async {
-    try {
-      await _tts.stop(); // Clean start
-      await _tts.speak('You are now in the Progress screen.');
-    } catch (_) {}
+    await tts.stop();
+    await tts.speakAndWait('You are now in the Progress screen.');
   }
 
-  /// Handle back press or close button
   Future<bool> _onWillPop() async {
     if (_isClosing) return false;
     _isClosing = true;
 
     try {
-      // Stop any ongoing announcement first
-      await _tts.stop();
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      // Speak closing announcement *without waiting*
-      _tts.speak('Progress screen closed.');
+      await tts.stop();
+      await Future.delayed(const Duration(milliseconds: 150));
+      await tts.speak('Closing Progress screen.');
     } catch (_) {}
 
-    // 🔥 Immediately navigate back
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
-
+    if (mounted) Navigator.of(context).pop();
     return false; // Prevent double pop
-  }
-
-  @override
-  void dispose() {
-    // Don’t stop TTS — allow the closing announcement to finish naturally
-    super.dispose();
   }
 
   @override
@@ -71,7 +46,7 @@ class _ProgressState extends State<Progress> {
           title: const Text('Progress'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: _onWillPop, // ✅ Tap behaves like back button
+            onPressed: _onWillPop,
           ),
         ),
         body: const Center(

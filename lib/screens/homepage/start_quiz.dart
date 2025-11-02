@@ -1,19 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
-import 'dart:async';
+import '/services/TTS_services.dart'; // ✅ Shared TTS service
+import '/services/quiz_engine.dart'; // ✅ Correct import — QuizEngine class is here
 
 class StartQuiz {
   static Future<void> show(BuildContext context) async {
-    final FlutterTts flutterTts = FlutterTts();
+    final TtsService tts = TtsService();
 
-    // Setup TTS
-    await flutterTts.setLanguage("en-US");
-    await flutterTts.setPitch(1.0);
-    await flutterTts.setSpeechRate(0.7);
-    await flutterTts.awaitSpeakCompletion(false);
-
-    // Speak simultaneously with showing dialog
-    flutterTts.speak("You are now in the Start Quiz screen.");
+    // 🔹 Announce entering the Start Quiz screen
+    await tts.stop();
+    await tts.speakAndWait("You are now in the Start Quiz screen.");
 
     await showDialog(
       context: context,
@@ -44,12 +39,30 @@ class StartQuiz {
                   style: TextStyle(fontSize: 16, color: Colors.black),
                 ),
                 const SizedBox(height: 20),
+
+                // 🎤 Mic Button
                 GestureDetector(
                   onTap: () async {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("Listening... 🎤")),
                     );
-                    flutterTts.speak("Listening...");
+                    await tts.stop();
+                    await tts.speak("Starting your quiz now.");
+
+                    // ⏳ Small delay for smooth transition
+                    await Future.delayed(const Duration(milliseconds: 400));
+
+                    // ✅ Navigate to QuizEngine screen
+                    if (context.mounted) {
+                      Navigator.pop(context); // close dialog first
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const QuizEngine()),
+                      );
+
+                      // 🔊 After returning
+                      await tts.speak("You are back in the home screen.");
+                    }
                   },
                   child: Container(
                     padding: const EdgeInsets.all(20),
@@ -60,16 +73,21 @@ class StartQuiz {
                     child: const Icon(Icons.mic, color: Colors.white, size: 40),
                   ),
                 ),
+
                 const SizedBox(height: 15),
+
+                // ❌ Close Button
                 TextButton(
                   onPressed: () async {
-                    // Stop any ongoing speech, then say closed
-                    await flutterTts.stop();
-                    await Future.delayed(const Duration(milliseconds: 200));
-                    await flutterTts.speak("Quiz closed.");
-                    Navigator.pop(context);
+                    await tts.stop();
+                    await Future.delayed(const Duration(milliseconds: 150));
+                    await tts.speak("Closing Start Quiz screen.");
+                    if (context.mounted) Navigator.pop(context);
                   },
-                  child: const Text("Close"),
+                  child: const Text(
+                    "Close",
+                    style: TextStyle(color: Colors.blueAccent),
+                  ),
                 ),
               ],
             ),

@@ -27,6 +27,7 @@ class _UploadNotesState extends State<UploadNotes> {
   String _lastWords = '';
   String _lastSpokenText = '';
   bool _isPaused = false;
+  bool _isClosing = false; // Added — prevents double back navigation
 
   @override
   void initState() {
@@ -38,16 +39,36 @@ class _UploadNotesState extends State<UploadNotes> {
   Future<void> _initializeTTS() async {
     await _tts.setLanguage('en-US');
     await _tts.setSpeechRate(0.6);
+    await _tts.awaitSpeakCompletion(false); // ✅ Added
   }
 
   Future<void> _announceEntry() async {
-    await _tts.stop();
-    await _tts.speak('You are now in the Upload Notes screen.');
+    try {
+      await _tts.stop(); // clean start
+      await _tts.speak('You are now in the Upload Notes screen.');
+    } catch (_) {}
   }
 
   Future<void> _announceExit() async {
-    await _tts.stop();
-    await _tts.speak("Closing Upload Notes screen.");
+    try {
+      await _tts.stop();
+      await Future.delayed(const Duration(milliseconds: 100));
+      _tts.speak('Upload Notes screen closed.');
+    } catch (_) {}
+  }
+
+  Future<bool> _onWillPop() async {
+    if (_isClosing) return false;
+    _isClosing = true;
+
+    try {
+      await _tts.stop();
+      await Future.delayed(const Duration(milliseconds: 100));
+      _tts.speak('Upload Notes screen closed.');
+    } catch (_) {}
+
+    if (mounted) Navigator.of(context).pop();
+    return false;
   }
 
   // MANUAL FILE PICKER
@@ -453,16 +474,8 @@ class _UploadNotesState extends State<UploadNotes> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      onPopInvoked: (didPop) async {
-        if (didPop) {
-          try {
-            // Do NOT await — let speech continue naturally
-            _tts.speak('Closing Upload Notes screen.');
-          } catch (_) {}
-        }
-      },
-
+    return WillPopScope(
+      onWillPop: _onWillPop, // ✅ Use our custom back handler
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
@@ -472,6 +485,10 @@ class _UploadNotesState extends State<UploadNotes> {
           ),
           backgroundColor: Colors.deepPurpleAccent,
           iconTheme: const IconThemeData(color: Colors.white),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _onWillPop, // ✅ same logic for app bar back button
+          ),
         ),
         body: Center(
           child: Padding(

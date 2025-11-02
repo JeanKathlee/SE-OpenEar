@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+
+// ✅ Shared TTS service
+import '/services/TTS_services.dart';
 
 class ReadNotesScreen extends StatefulWidget {
   const ReadNotesScreen({super.key});
@@ -15,7 +17,7 @@ class ReadNotesScreen extends StatefulWidget {
 }
 
 class _ReadNotesScreenState extends State<ReadNotesScreen> {
-  final FlutterTts _tts = FlutterTts();
+  final TtsService tts = TtsService();
   final stt.SpeechToText _speech = stt.SpeechToText();
 
   bool _hasAnnounced = false;
@@ -44,28 +46,20 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
     _isSpeaking = true;
     _hasAnnounced = true;
 
-    await _tts.stop();
-    await _tts.setLanguage('en-US');
-    await _tts.setSpeechRate(0.6);
-    await _tts.setPitch(1.0);
-    await _tts.awaitSpeakCompletion(true);
-
-    await _tts.speak(
+    await tts.stop();
+    await tts.speakAndWait(
       'You are now in the Read Notes screen. Tap any note to hear it or press the mic button and say a file name.',
     );
 
-    _tts.setCompletionHandler(() {
-      _isSpeaking = false;
-    });
+    _isSpeaking = false;
   }
 
   Future<void> _loadSavedNotes() async {
     setState(() => _loading = true);
     try {
       final appDir = await getApplicationDocumentsDirectory();
-      final notesDir = Directory(
-        '${appDir.path}${Platform.pathSeparator}saved_notes',
-      );
+      final notesDir = Directory('${appDir.path}/saved_notes');
+
       if (!await notesDir.exists()) {
         await notesDir.create(recursive: true);
       }
@@ -88,9 +82,7 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
             .toString()
             .toLowerCase()
             .trim();
-        if (!uniqueByTitle.containsKey(titleKey)) {
-          uniqueByTitle[titleKey] = m;
-        }
+        uniqueByTitle.putIfAbsent(titleKey, () => m);
       }
 
       final finalList = uniqueByTitle.values.toList()
@@ -100,44 +92,42 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
           return bCreated.compareTo(aCreated);
         });
 
-      setState(() {
-        _notes = finalList;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _notes = finalList;
+          _loading = false;
+        });
+      }
     } catch (_) {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _speakNote(Map<String, dynamic> note) async {
     final text = (note['content'] ?? '').toString();
     if (text.isEmpty) {
-      await _tts.speak('This note is empty.');
+      await tts.speak('This note is empty.');
       return;
     }
-    await _tts.stop();
-    await _tts.setSpeechRate(0.45);
-    await _tts.setPitch(1.0);
-    await _tts.awaitSpeakCompletion(true);
-    await _tts.speak(text);
+
+    await tts.stop();
+    await tts.speakAndWait(text);
   }
 
   Future<bool> _requestMicPermission() async {
     final status = await Permission.microphone.request();
     if (status != PermissionStatus.granted) {
-      await _tts.speak('Microphone permission is required.');
+      await tts.speak('Microphone permission is required.');
       return false;
     }
     return true;
   }
 
-  String _normalize(String s) {
-    return s
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^\w\s]'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
+  String _normalize(String s) => s
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^\w\s]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 
   bool _matchesTitle(String title, String query) {
     final nTitle = _normalize(title);
@@ -156,16 +146,12 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
 
     final available = await _speech.initialize();
     if (!available) {
-      await _tts.speak('Speech recognition not available.');
+      await tts.speak('Speech recognition not available.');
       return;
     }
 
-    await _tts.stop();
-    await _tts.setLanguage('en-US');
-    await _tts.setSpeechRate(0.6);
-    await _tts.setPitch(1.0);
-    await _tts.awaitSpeakCompletion(true);
-    await _tts.speak(
+    await tts.stop();
+    await tts.speakAndWait(
       'Which file would you like me to read? Say part of the file name after the beep.',
     );
 
@@ -198,7 +184,7 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
     } catch (_) {}
 
     if (heard.trim().isEmpty) {
-      await _tts.speak('No voice detected.');
+      await tts.speak('No voice detected.');
       return;
     }
 
@@ -206,7 +192,7 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
     if (query.contains('go back') ||
         query.contains('exit') ||
         query.contains('close')) {
-      await _handleExit(); // ✅ identical voice behavior as back button
+      await _handleExit();
       return;
     }
 
@@ -220,11 +206,11 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
     }
 
     if (found == null) {
-      await _tts.speak('No note matched that name.');
+      await tts.speak('No note matched that name.');
       return;
     }
 
-    await _tts.speak('Opening ${found['title']}');
+    await tts.speakAndWait('Opening ${found['title']}');
     await _speakNote(found);
   }
 
@@ -232,42 +218,40 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
     if (_isClosing) return;
     _isClosing = true;
 
-    await _tts.stop();
-    await _tts.setLanguage('en-US');
-    await _tts.setSpeechRate(0.6);
-    await _tts.setPitch(1.0);
-    await _tts.awaitSpeakCompletion(true);
+    try {
+      await _speech.stop();
+      await tts.stop();
+      await tts.speakAndWait('Closing Read Notes screen.');
+      await Future.delayed(const Duration(milliseconds: 150));
+    } catch (_) {}
 
-    final completer = Completer<void>();
-    _tts.setCompletionHandler(() {
-      if (!completer.isCompleted) completer.complete();
-    });
-
-    await _tts.speak('Closing Read Notes screen.');
-    await completer.future;
-
-    if (mounted) Navigator.of(context).pop();
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
   void dispose() {
-    _tts.stop();
     _speech.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      onPopInvoked: (didPop) async {
-        if (didPop) return;
+    return WillPopScope(
+      onWillPop: () async {
         await _handleExit();
+        return false;
       },
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Read Notes'),
           backgroundColor: Colors.teal.shade700,
           foregroundColor: Colors.white,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _handleExit,
+          ),
         ),
         body: SafeArea(
           child: _loading
@@ -306,7 +290,7 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
                           color: Colors.white,
                         ),
                         onTap: () async {
-                          await _tts.speak('Playing $title');
+                          await tts.speakAndWait('Playing $title');
                           await _speakNote(note);
                         },
                       ),

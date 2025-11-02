@@ -1,21 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
-import 'dart:async';
+import '/services/TTS_services.dart'; // ✅ Use the shared TTS service
 
 class AskQuestionsPopup {
   static Future<void> show(BuildContext context) async {
-    final FlutterTts flutterTts = FlutterTts();
+    final TtsService tts = TtsService();
 
-    // Setup TTS
-    await flutterTts.setLanguage("en-US");
-    await flutterTts.setPitch(1.0);
-    await flutterTts.setSpeechRate(0.7);
-    await flutterTts.awaitSpeakCompletion(false);
-
-    // Speak simultaneously with showing dialog
-    flutterTts.speak("You are now in the Ask Questions screen.");
-
-    TextEditingController controller = TextEditingController();
+    // 🔹 Announce entering the popup
+    await tts.stop();
+    await tts.speakAndWait("You are now in the Ask Questions screen.");
 
     await showDialog(
       context: context,
@@ -51,7 +43,8 @@ class AskQuestionsPopup {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("Listening... 🎤")),
                     );
-                    flutterTts.speak("Listening...");
+                    await tts.stop();
+                    await tts.speak("Listening...");
                   },
                   child: Container(
                     padding: const EdgeInsets.all(20),
@@ -65,11 +58,10 @@ class AskQuestionsPopup {
                 const SizedBox(height: 15),
                 TextButton(
                   onPressed: () async {
-                    // Stop current speech safely, then announce closure
-                    await flutterTts.stop();
-                    await Future.delayed(const Duration(milliseconds: 200));
-                    await flutterTts.speak("Questions closed.");
-                    Navigator.pop(context);
+                    await tts.stop();
+                    await Future.delayed(const Duration(milliseconds: 150));
+                    await tts.speak("Closing Ask Questions screen.");
+                    if (context.mounted) Navigator.pop(context);
                   },
                   child: const Text("Close"),
                 ),
