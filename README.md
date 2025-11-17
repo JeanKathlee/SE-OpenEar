@@ -2,9 +2,9 @@
 
 **Project Title:** OpenEar  
 **Team Members:**  
-- Villegas, Jean Kathleen R. -Homepage interface and Improving sode Structures
-- Nombrado, John Cale  -Uploading design artifacts and coding the welcome page
-- Diwa, Francis Marc Nikko G.  - Login interface and fixing bugs
+- Villegas, Jean Kathleen R. -Homepage interface and Improving sode Structures ----Architectural and UI Design Model
+- Nombrado, John Cale  -Uploading design artifacts and coding the welcome page------Data Design Model and Data Flow Diagram
+- Diwa, Francis Marc Nikko G.  - Login interface and fixing bugs-----Procedural Diagram
  
 
 **Date Started:** 09/16/25  
