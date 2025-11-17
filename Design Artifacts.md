@@ -14,11 +14,14 @@ DESIGN MODELS
 -Architectural 
 <img width="541" height="452" alt="Architectiural" src="https://github.com/user-attachments/assets/1c8177a3-2650-4e10-9ce3-c19dee3e4ab3" />
 
--UI
-<img width="601" height="481" alt="UI" src="https://github.com/user-attachments/assets/476bfd08-fa04-4f0d-a36b-fe1086b39634" />
-
 -Procedural
-<img width="1003" height="722" alt="Procedural" src="https://github.com/user-attachments/assets/c9c868bc-8167-4cf0-94f5-dce402ab9f70" />
+<img width="1003" height="722" alt="Procedural" src="https://github.com/user-attachments/assets/3f9eb685-bb54-4942-9c77-6f9ef1016234" />
 
 -UI
-<img width="601" height="481" alt="UI" src="https://github.com/user-attachments/assets/31679714-80b0-4f93-8467-0df1d19bf34b" />
+<img width="601" height="481" alt="UI" src="https://github.com/user-attachments/assets/131a60fa-e10c-4218-b015-b4de612e3bac" />
+
+-Data Design and Data flow
+<img width="1696" height="1170" alt="Data Design" src="https://github.com/user-attachments/assets/84f83c66-e20d-404d-9142<img width="710" height="1536" alt="Data Flow Diagram" src="https://github.com/user-attachments/assets/95bdc8d1-555b-43f7-ac5d-110982cef2ac" />
+-be9e0860c2e6" />
+
+
