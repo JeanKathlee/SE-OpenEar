@@ -130,7 +130,7 @@ class _UploadNotesState extends State<UploadNotes> {
 
       // --- Handle PDF files ---
       if (extension == 'pdf') {
-        await _tts.speak("Reading your PDF file, please wait.");
+        await _tts.speak("Processing your PDF file, please wait.");
         final document = PdfDocument(inputBytes: bytes);
         extractedText = PdfTextExtractor(document).extractText();
         document.dispose();
@@ -152,11 +152,11 @@ class _UploadNotesState extends State<UploadNotes> {
           "PDF content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
         );
         await _saveNote(title, extractedText);
-        await _speakText(extractedText);
+        await _tts.speak("Upload successful. Go to Read Notes to listen to the file.");
       }
       // --- Handle DOCX files ---
       else if (extension == 'docx') {
-        await _tts.speak("Reading your Word document, please wait.");
+        await _tts.speak("Processing your Word document, please wait.");
         extractedText = await _extractTextFromDocxBytes(bytes);
 
         if (extractedText == null || extractedText.isEmpty) {
@@ -171,11 +171,11 @@ class _UploadNotesState extends State<UploadNotes> {
           "DOCX content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
         );
         await _saveNote(title, extractedText);
-        await _speakText(extractedText);
+        await _tts.speak("Upload successful. Go to Read Notes to listen to the file.");
       }
       // --- Handle TXT files ---
       else if (extension == 'txt') {
-        await _tts.speak("Reading your text file.");
+        await _tts.speak("Processing your text file.");
         extractedText = utf8.decode(bytes);
 
         if (extractedText.isEmpty) {
@@ -188,7 +188,7 @@ class _UploadNotesState extends State<UploadNotes> {
           "Text file content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
         );
         await _saveNote(title, extractedText);
-        await _speakText(extractedText);
+        await _tts.speak("Upload successful. Go to Read Notes to listen to the file.");
       }
       // --- Unsupported types ---
       else {
@@ -224,7 +224,7 @@ class _UploadNotesState extends State<UploadNotes> {
 
       // --- Handle PDF files ---
       if (extension == 'pdf') {
-        await _tts.speak("Reading your PDF file, please wait.");
+        await _tts.speak("Processing your PDF file, please wait.");
         final bytes = await file.readAsBytes();
         final document = PdfDocument(inputBytes: bytes);
         extractedText = PdfTextExtractor(document).extractText();
@@ -247,11 +247,11 @@ class _UploadNotesState extends State<UploadNotes> {
           "PDF content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
         );
         await _saveNote(title, extractedText);
-        await _speakText(extractedText);
+        await _tts.speak("Upload successful. Go to Read Notes to listen to the file.");
       }
       // --- Handle DOCX files ---
       else if (extension == 'docx') {
-        await _tts.speak("Reading your Word document, please wait.");
+        await _tts.speak("Processing your Word document, please wait.");
         extractedText = await _extractTextFromDocx(file);
 
         if (extractedText == null || extractedText.isEmpty) {
@@ -266,11 +266,11 @@ class _UploadNotesState extends State<UploadNotes> {
           "DOCX content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
         );
         await _saveNote(title, extractedText);
-        await _speakText(extractedText);
+        await _tts.speak("Upload successful. Go to Read Notes to listen to the file.");
       }
       // --- Handle TXT files ---
       else if (extension == 'txt') {
-        await _tts.speak("Reading your text file.");
+        await _tts.speak("Processing your text file.");
         extractedText = await file.readAsString();
 
         if (extractedText.isEmpty) {
@@ -283,7 +283,7 @@ class _UploadNotesState extends State<UploadNotes> {
           "Text file content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
         );
         await _saveNote(title, extractedText);
-        await _speakText(extractedText);
+        await _tts.speak("Upload successful. Go to Read Notes to listen to the file.");
       }
       // --- Unsupported types ---
       else {
