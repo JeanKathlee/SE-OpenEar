@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:shared_preferences/shared_preferences.dart';
 import '/services/TTS_services.dart';
 import '/services/question_generator.dart';
 
@@ -234,6 +237,7 @@ class _QuizPlayerScreenState extends State<QuizPlayerScreen> {
     final resultMessage =
         'Quiz complete! You scored $score out of ${questions.length}, which is $percentage percent.';
 
+    await _saveProgress(score, questions.length, int.parse(percentage));
     await tts.speak(resultMessage);
 
     if (mounted) {
@@ -289,6 +293,33 @@ class _QuizPlayerScreenState extends State<QuizPlayerScreen> {
       return 'Fair effort. Review the content and try again. 📖';
     } else {
       return 'Keep practicing! You can improve next time. 💪';
+    }
+  }
+
+  Future<void> _saveProgress(int score, int total, int percent) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      List<dynamic> existing = [];
+      final raw = prefs.getString('quiz_progress');
+      if (raw != null) {
+        existing = jsonDecode(raw) as List<dynamic>;
+      }
+
+      existing.insert(0, {
+        'title': widget.title,
+        'score': score,
+        'total': total,
+        'percent': percent,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      if (existing.length > 50) {
+        existing = existing.take(50).toList();
+      }
+
+      await prefs.setString('quiz_progress', jsonEncode(existing));
+    } catch (e) {
+      debugPrint('Failed to save progress: $e');
     }
   }
 

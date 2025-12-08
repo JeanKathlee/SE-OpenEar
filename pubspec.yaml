@@ -38,6 +38,9 @@ dependencies:
   # Local storage (works on web and mobile)
   shared_preferences: ^2.2.2
 
+  # Date formatting for progress view
+  intl: ^0.19.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
