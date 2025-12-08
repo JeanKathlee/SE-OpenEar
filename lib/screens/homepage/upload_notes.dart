@@ -1,6 +1,7 @@
 // ...existing code...
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 // ...existing code...
 
 class UploadNotes extends StatefulWidget {
@@ -77,6 +79,7 @@ class _UploadNotesState extends State<UploadNotes> {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['txt', 'docx', 'pdf'],
+        withData: kIsWeb, // Load bytes on web
       );
 
       if (result == null || result.files.isEmpty) {
@@ -85,14 +88,23 @@ class _UploadNotesState extends State<UploadNotes> {
       }
 
       final picked = result.files.single;
-      if (picked.path == null) {
-        await _tts.speak("File path unavailable.");
-        return;
-      }
-
-      final file = File(picked.path!);
       await _tts.speak("Opening file ${picked.name}");
-      await _handlePickedFile(file);
+
+      // On web, use bytes; on mobile, use path
+      if (kIsWeb) {
+        if (picked.bytes == null) {
+          await _tts.speak("File data unavailable.");
+          return;
+        }
+        await _handlePickedFileBytes(picked.name, picked.bytes!);
+      } else {
+        if (picked.path == null) {
+          await _tts.speak("File path unavailable.");
+          return;
+        }
+        final file = File(picked.path!);
+        await _handlePickedFile(file);
+      }
     } catch (e) {
       debugPrint('Manual file pick error: $e');
       if (mounted) {
@@ -104,6 +116,94 @@ class _UploadNotesState extends State<UploadNotes> {
     }
   }
 
+  // Handle file from bytes (for web)
+  Future<void> _handlePickedFileBytes(String fileName, List<int> bytes) async {
+    try {
+      final extension = fileName.split('.').last.toLowerCase();
+      String? extractedText;
+
+      // derive a friendly title from filename (without extension)
+      String title = fileName
+          .replaceAll(RegExp(r'\.\w+$'), '')
+          .replaceAll('_', ' ')
+          .trim();
+
+      // --- Handle PDF files ---
+      if (extension == 'pdf') {
+        await _tts.speak("Reading your PDF file, please wait.");
+        final document = PdfDocument(inputBytes: bytes);
+        extractedText = PdfTextExtractor(document).extractText();
+        document.dispose();
+
+        extractedText = extractedText
+            .replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .replaceAll(RegExp(r'\s([.,!?])'), r'\1')
+            .trim();
+
+        if (extractedText.isEmpty) {
+          await _tts.speak(
+            "Sorry, I could not extract any readable text from your PDF.",
+          );
+          return;
+        }
+
+        debugPrint(
+          "PDF content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
+        );
+        await _saveNote(title, extractedText);
+        await _speakText(extractedText);
+      }
+      // --- Handle DOCX files ---
+      else if (extension == 'docx') {
+        await _tts.speak("Reading your Word document, please wait.");
+        extractedText = await _extractTextFromDocxBytes(bytes);
+
+        if (extractedText == null || extractedText.isEmpty) {
+          await _tts.speak(
+            "Sorry, I could not extract any readable text from your document.",
+          );
+          return;
+        }
+
+        extractedText = extractedText.replaceAll(RegExp(r'\s+'), ' ').trim();
+        debugPrint(
+          "DOCX content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
+        );
+        await _saveNote(title, extractedText);
+        await _speakText(extractedText);
+      }
+      // --- Handle TXT files ---
+      else if (extension == 'txt') {
+        await _tts.speak("Reading your text file.");
+        extractedText = utf8.decode(bytes);
+
+        if (extractedText.isEmpty) {
+          await _tts.speak("The text file is empty.");
+          return;
+        }
+
+        extractedText = extractedText.replaceAll(RegExp(r'\s+'), ' ').trim();
+        debugPrint(
+          "Text file content extracted: ${extractedText.substring(0, extractedText.length > 200 ? 200 : extractedText.length)}",
+        );
+        await _saveNote(title, extractedText);
+        await _speakText(extractedText);
+      }
+      // --- Unsupported types ---
+      else {
+        await _tts.speak(
+          "Unsupported file type. Please select a PDF, Word, or text file.",
+        );
+        debugPrint("Unsupported file type: $extension");
+      }
+    } catch (e) {
+      debugPrint("Error handling picked file bytes: $e");
+      await _tts.speak("There was an error opening your file.");
+    }
+  }
+
+  // Handle file from path (for mobile)
   Future<void> _handlePickedFile(File file) async {
     try {
       if (!await file.exists()) {
@@ -297,6 +397,29 @@ class _UploadNotesState extends State<UploadNotes> {
     }
   }
 
+  Future<String?> _extractTextFromDocxBytes(List<int> bytes) async {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+
+      final xmlFile = archive.firstWhere(
+        (f) => f.name.toLowerCase().contains('word/document.xml'),
+        orElse: () => throw Exception('document.xml not found'),
+      );
+
+      final xmlContent = utf8.decode(xmlFile.content as List<int>);
+
+      final text = xmlContent
+          .replaceAll(RegExp(r'<[^>]+>'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+
+      return text;
+    } catch (e) {
+      debugPrint(' DOCX extract error: $e');
+      return 'Could not extract DOCX text: $e';
+    }
+  }
+
   Future<void> _speakText(String text) async {
     _lastSpokenText = text;
     await _tts.stop();
@@ -318,6 +441,21 @@ class _UploadNotesState extends State<UploadNotes> {
 
   // START VOICE FLOW
   Future<void> _startVoiceFlow() async {
+    // Voice navigation doesn't work on web (no file system access)
+    if (kIsWeb) {
+      await _tts.speak(
+        'Voice navigation is only available on mobile. Please use manual upload.',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Voice navigation is only available on mobile devices'),
+          ),
+        );
+      }
+      return;
+    }
+
     final micGranted = await _requestMicPermission();
     if (!micGranted) {
       await _tts.speak('Microphone permission is required.');
@@ -411,8 +549,67 @@ class _UploadNotesState extends State<UploadNotes> {
     );
   }
 
-  // NEW: Save note to app documents (saved_notes folder)
+  // NEW: Save note to app documents (saved_notes folder) or localStorage (web)
   Future<void> _saveNote(String title, String content) async {
+    if (kIsWeb) {
+      // Web: use SharedPreferences (works on web as localStorage)
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final notesKey = 'openear_saved_notes';
+        
+        // Load existing notes
+        final notesJson = prefs.getString(notesKey);
+        List<Map<String, dynamic>> notes = [];
+        if (notesJson != null && notesJson.isNotEmpty) {
+          final decoded = jsonDecode(notesJson);
+          if (decoded is List) {
+            notes = decoded.cast<Map<String, dynamic>>();
+          }
+        }
+        
+        // Check for duplicates
+        for (final note in notes) {
+          final existingTitle = (note['title'] ?? '').toString();
+          final existingContent = (note['content'] ?? '').toString();
+          if (existingTitle.toLowerCase() == title.toLowerCase() ||
+              existingContent == content) {
+            await _tts.speak(
+              'This note already exists. It will not be added again.',
+            );
+            debugPrint('Duplicate note detected on web, skipping save: $title');
+            return;
+          }
+        }
+        
+        // Add new note
+        final newNote = {
+          'title': title,
+          'content': content,
+          'created': DateTime.now().toIso8601String(),
+        };
+        notes.add(newNote);
+        
+        // Save back to SharedPreferences
+        await prefs.setString(notesKey, jsonEncode(notes));
+        debugPrint('Note saved to web storage: $title');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Note "$title" saved successfully')),
+          );
+        }
+      } catch (e) {
+        debugPrint('Error saving note to web storage: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error saving note: $e')),
+          );
+        }
+      }
+      return;
+    }
+
+    // Mobile: use file system
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final notesDir = Directory(

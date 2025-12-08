@@ -35,6 +35,9 @@ dependencies:
   # PDF Text Extraction
   syncfusion_flutter_pdf: ^27.1.58
 
+  # Local storage (works on web and mobile)
+  shared_preferences: ^2.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

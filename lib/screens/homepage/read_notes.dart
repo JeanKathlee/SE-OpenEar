@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ✅ Shared TTS service
 import '/services/TTS_services.dart';
@@ -57,23 +59,39 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
   Future<void> _loadSavedNotes() async {
     setState(() => _loading = true);
     try {
-      final appDir = await getApplicationDocumentsDirectory();
-      final notesDir = Directory('${appDir.path}/saved_notes');
+      List<Map<String, dynamic>> loaded = [];
 
-      if (!await notesDir.exists()) {
-        await notesDir.create(recursive: true);
-      }
+      if (kIsWeb) {
+        // Web: read from SharedPreferences (localStorage on web)
+        final prefs = await SharedPreferences.getInstance();
+        final notesKey = 'openear_saved_notes';
+        final notesJson = prefs.getString(notesKey);
+        
+        if (notesJson != null && notesJson.isNotEmpty) {
+          final decoded = jsonDecode(notesJson);
+          if (decoded is List) {
+            loaded = decoded.cast<Map<String, dynamic>>();
+          }
+        }
+      } else {
+        // Mobile: read from file system
+        final appDir = await getApplicationDocumentsDirectory();
+        final notesDir = Directory('${appDir.path}/saved_notes');
 
-      final files = notesDir.listSync().whereType<File>().toList();
-      final List<Map<String, dynamic>> loaded = [];
+        if (!await notesDir.exists()) {
+          await notesDir.create(recursive: true);
+        }
 
-      for (final f in files) {
-        try {
-          final content = await f.readAsString();
-          final map = jsonDecode(content) as Map<String, dynamic>;
-          map['__path'] = f.path;
-          loaded.add(map);
-        } catch (_) {}
+        final files = notesDir.listSync().whereType<File>().toList();
+
+        for (final f in files) {
+          try {
+            final content = await f.readAsString();
+            final map = jsonDecode(content) as Map<String, dynamic>;
+            map['__path'] = f.path;
+            loaded.add(map);
+          } catch (_) {}
+        }
       }
 
       final Map<String, Map<String, dynamic>> uniqueByTitle = {};
