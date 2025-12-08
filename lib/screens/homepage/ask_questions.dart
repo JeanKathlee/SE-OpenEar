@@ -48,7 +48,7 @@ class AskQuestionsPopup {
     }
 
     // Extract keywords from user question
-    String extractKeyword(String question) {
+    List<String> extractKeywords(String question) {
       final stopWords = [
         'what',
         'is',
@@ -64,27 +64,38 @@ class AskQuestionsPopup {
         'please',
         'can',
         'you',
+        'give',
+        'show',
       ];
       final words = question.toLowerCase().split(RegExp(r'\s+'));
-      final filtered = words.where((w) => !stopWords.contains(w)).toList();
-      return filtered.isEmpty ? question : filtered.join(' ');
+      return words.where((w) => !stopWords.contains(w)).toList();
     }
 
-    // Search all notes and return best matching sentence
-    Future<String?> searchNotes(String keyword) async {
+    // Search all notes and return best matching line/paragraph
+    Future<String?> searchNotes(List<String> keywords) async {
       final notes = await loadSavedNotesText();
       if (notes.isEmpty) return null;
 
-      keyword = keyword.toLowerCase();
+      String? bestMatch;
+      int highestScore = 0;
+
       for (final noteContent in notes) {
-        final sentences = noteContent.split(RegExp(r'[.!?]'));
-        for (final sentence in sentences) {
-          if (sentence.toLowerCase().contains(keyword)) {
-            return sentence.trim();
+        // Split by sentence, bullet, number, or newline
+        final lines = noteContent.split(RegExp(r'[\n\r•\-\d]+\s*'));
+        for (final line in lines) {
+          if (line.trim().isEmpty) continue;
+          final lcLine = line.toLowerCase();
+          int score = 0;
+          for (final kw in keywords) {
+            if (lcLine.contains(kw)) score++;
+          }
+          if (score > highestScore) {
+            highestScore = score;
+            bestMatch = line.trim();
           }
         }
       }
-      return null;
+      return bestMatch;
     }
 
     // Listen to user question
@@ -106,16 +117,17 @@ class AskQuestionsPopup {
         localeId: 'en_US',
       );
 
+      // Auto stop after 5 seconds
       await Future.delayed(const Duration(seconds: 5));
       await speech.stop();
 
       if (heard.isEmpty) {
-        await tts.speak("I did not hear anything.");
+        await tts.speak("I did not hear anything. Please try again.");
         return;
       }
 
-      final keyword = extractKeyword(heard);
-      final found = await searchNotes(keyword);
+      final keywords = extractKeywords(heard);
+      final found = await searchNotes(keywords);
 
       if (found == null) {
         await tts.speak(
@@ -124,6 +136,7 @@ class AskQuestionsPopup {
       } else {
         await tts.speak("Here is what I found:");
         await tts.speakAndWait(found);
+        await tts.speak("That's the answer to your question.");
       }
     }
 
@@ -131,6 +144,7 @@ class AskQuestionsPopup {
     await tts.stop();
     await tts.speakAndWait("You are now in the Ask Questions screen.");
 
+    // Show dialog
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -152,7 +166,7 @@ class AskQuestionsPopup {
               ),
               const SizedBox(height: 15),
               const Text(
-                "Tap the mic and ask your question.",
+                "Tap the mic and ask your question. You can ask multiple questions without closing.",
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 16, color: Colors.black),
               ),
