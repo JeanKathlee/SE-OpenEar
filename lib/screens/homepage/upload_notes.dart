@@ -1,4 +1,3 @@
-// ...existing code...
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -11,6 +10,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '/services/quiz_validator.dart';
 // ...existing code...
 
 class UploadNotes extends StatefulWidget {
@@ -580,22 +580,32 @@ class _UploadNotesState extends State<UploadNotes> {
             return;
           }
         }
+
+        // Validate if content is quizzable
+        final isQuizzable = QuizValidator.isQuizzable(content, title);
+        final quizzabilityScore = QuizValidator.getQuizzabilityScore(content, title);
+        final validationMessage = QuizValidator.getValidationMessage(content, title);
         
-        // Add new note
+        // Add new note with quiz metadata
         final newNote = {
           'title': title,
           'content': content,
           'created': DateTime.now().toIso8601String(),
+          'isQuizzable': isQuizzable,
+          'quizzabilityScore': quizzabilityScore,
         };
         notes.add(newNote);
         
         // Save back to SharedPreferences
         await prefs.setString(notesKey, jsonEncode(notes));
-        debugPrint('Note saved to web storage: $title');
+        debugPrint('Note saved to web storage: $title (Quizzable: $isQuizzable)');
+        
+        // Announce validation result
+        await _tts.speak(validationMessage);
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Note "$title" saved successfully')),
+            SnackBar(content: Text(validationMessage)),
           );
         }
       } catch (e) {

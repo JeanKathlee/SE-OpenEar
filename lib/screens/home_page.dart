@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '/screens/homepage/read_notes.dart';
 import '/screens/homepage/ask_questions.dart';
-import '/screens/homepage/start_quiz.dart';
+import '/screens/homepage/start_quiz_screen.dart';
 import '/screens/homepage/progress.dart';
 import '/screens/homepage/upload_notes.dart';
 import '/widgets/voice_command_button.dart';
@@ -84,7 +84,10 @@ class _HomePageState extends State<HomePage> with RouteAware {
 
   void _onStartQuiz() {
     _navigateOnce(() async {
-      await StartQuiz.show(context);
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const StartQuizScreen()),
+      );
     });
   }
 
