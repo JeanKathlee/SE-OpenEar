@@ -245,27 +245,38 @@ class _QuizPlayerScreenState extends State<QuizPlayerScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          title: const Text('Quiz Results'),
+          backgroundColor: Colors.white,
+          title: const Text(
+            'Quiz Results',
+            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 '$score / ${questions.length}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.bold,
-                  color: Colors.deepPurpleAccent,
+                  color: Colors.deepPurple.shade700,
                 ),
               ),
               const SizedBox(height: 10),
               Text(
                 '$percentage%',
-                style: const TextStyle(fontSize: 24),
+                style: const TextStyle(
+                  fontSize: 24,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 20),
               Text(
                 _getResultMessage(int.parse(percentage)),
-                style: const TextStyle(fontSize: 16),
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: Colors.black87,
+                ),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -401,66 +412,94 @@ class _QuizPlayerScreenState extends State<QuizPlayerScreen> {
                   final label = answerLabels[index];
                   final isSelected = _selectedAnswer == option;
                   final isCorrect = option == currentQuestion.options[currentQuestion.correctIndex];
+                  
+                  // Vibrant colors for each choice
+                  final List<Color> choiceColors = [
+                    Colors.blue.shade600,      // A - Blue
+                    Colors.orange.shade600,    // B - Orange
+                    Colors.purple.shade600,    // C - Purple
+                    Colors.teal.shade600,      // D - Teal
+                  ];
+                  final choiceColor = choiceColors[index];
 
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: 20),
                     child: GestureDetector(
                       onTap: _answered ? null : () => _selectAnswer(index),
                       child: Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: isSelected
-                                ? (isCorrect ? Colors.green : Colors.red)
-                                : Colors.grey[300]!,
-                            width: isSelected ? 3 : 1,
+                                ? (isCorrect ? Colors.green.shade700 : Colors.red.shade700)
+                                : choiceColor,
+                            width: isSelected ? 4 : 3,
                           ),
                           color: isSelected
                               ? (isCorrect
-                                  ? Colors.green.withValues(alpha: 0.1)
-                                  : Colors.red.withValues(alpha: 0.1))
-                              : Colors.white,
+                                  ? Colors.green.shade50
+                                  : Colors.red.shade50)
+                              : choiceColor.withOpacity(0.08),
+                          boxShadow: [
+                            BoxShadow(
+                              color: isSelected 
+                                ? (isCorrect ? Colors.green : Colors.red).withOpacity(0.3)
+                                : choiceColor.withOpacity(0.2),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: Row(
                           children: [
                             Container(
-                              width: 50,
-                              height: 50,
+                              width: 65,
+                              height: 65,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: isSelected
-                                    ? (isCorrect ? Colors.green : Colors.red)
-                                    : Colors.deepPurpleAccent,
+                                    ? (isCorrect ? Colors.green.shade600 : Colors.red.shade600)
+                                    : choiceColor,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: isSelected
+                                      ? (isCorrect ? Colors.green : Colors.red).withOpacity(0.4)
+                                      : choiceColor.withOpacity(0.4),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
                               alignment: Alignment.center,
                               child: Text(
                                 label,
                                 style: const TextStyle(
-                                  fontSize: 24,
+                                  fontSize: 32,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: 20),
                             Expanded(
                               child: Text(
                                 option,
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 18,
                                   color: isSelected
-                                      ? (isCorrect ? Colors.green : Colors.red)
+                                      ? (isCorrect ? Colors.green.shade800 : Colors.red.shade800)
                                       : Colors.black87,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                  height: 1.4,
                                 ),
                               ),
                             ),
                             if (isSelected && _answered)
                               Icon(
                                 isCorrect ? Icons.check_circle : Icons.cancel,
-                                color: isCorrect ? Colors.green : Colors.red,
-                                size: 28,
+                                color: isCorrect ? Colors.green.shade600 : Colors.red.shade600,
+                                size: 36,
                               ),
                           ],
                         ),

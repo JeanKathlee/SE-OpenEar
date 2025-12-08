@@ -157,12 +157,14 @@ class _StartQuizScreenState extends State<StartQuizScreen> {
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
+                              color: Colors.black87,
                             ),
                           ),
                           subtitle: Text(
                             _getScoreLabel(score),
                             style: TextStyle(
-                              color: _getScoreColor(score),
+                              color: _getDarkScoreColor(score),
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                           trailing: const Icon(Icons.arrow_forward),
@@ -179,6 +181,12 @@ class _StartQuizScreenState extends State<StartQuizScreen> {
     if (score >= 80) return Colors.green;
     if (score >= 60) return Colors.orange;
     return Colors.red;
+  }
+
+  Color _getDarkScoreColor(int score) {
+    if (score >= 80) return Colors.green.shade700;
+    if (score >= 60) return Colors.orange.shade800;
+    return Colors.red.shade700;
   }
 
   String _getScoreLabel(int score) {
