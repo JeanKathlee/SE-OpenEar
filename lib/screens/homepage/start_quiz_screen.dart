@@ -14,6 +14,7 @@ class StartQuizScreen extends StatefulWidget {
 }
 
 class _StartQuizScreenState extends State<StartQuizScreen> {
+  static const int _maxQuestions = 20;
   final TtsService tts = TtsService();
   List<Map<String, dynamic>> quizzableNotes = [];
   bool isLoading = true;
@@ -39,9 +40,22 @@ class _StartQuizScreenState extends State<StartQuizScreen> {
         final decoded = jsonDecode(notesJson);
         if (decoded is List) {
           final allNotes = decoded.cast<Map<String, dynamic>>();
-          // Filter only quizzable notes
+          // Filter only quizzable notes and compute question counts up front
           final quizzable = allNotes
               .where((note) => (note['isQuizzable'] as bool?) ?? false)
+              .map((note) {
+                final title = (note['title'] ?? 'Untitled').toString();
+                final content = (note['content'] ?? '').toString();
+                final questionCount = QuestionGenerator.generateQuestions(
+                  content,
+                  title,
+                  maxQuestions: _maxQuestions,
+                ).length;
+                return {
+                  ...note,
+                  'questionCount': questionCount,
+                };
+              })
               .toList();
 
           setState(() {
@@ -80,6 +94,7 @@ class _StartQuizScreenState extends State<StartQuizScreen> {
           builder: (_) => QuizPlayerScreen(
             title: title,
             content: content,
+            maxQuestions: _maxQuestions,
           ),
         ),
       );
@@ -133,6 +148,7 @@ class _StartQuizScreenState extends State<StartQuizScreen> {
                       final note = quizzableNotes[index];
                       final title = (note['title'] ?? 'Untitled').toString();
                       final score = (note['quizzabilityScore'] as int?) ?? 0;
+                      final questionCount = (note['questionCount'] as int?) ?? 0;
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -145,7 +161,7 @@ class _StartQuizScreenState extends State<StartQuizScreen> {
                           leading: CircleAvatar(
                             backgroundColor: _getScoreColor(score),
                             child: Text(
-                              score.toString(),
+                              questionCount.toString(),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,

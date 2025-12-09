@@ -9,10 +9,12 @@ import '/services/question_generator.dart';
 class QuizPlayerScreen extends StatefulWidget {
   final String title;
   final String content;
+  final int maxQuestions;
 
   const QuizPlayerScreen({
     required this.title,
     required this.content,
+    this.maxQuestions = 5,
     super.key,
   });
 
@@ -46,7 +48,7 @@ class _QuizPlayerScreenState extends State<QuizPlayerScreen> {
     questions = QuestionGenerator.generateQuestions(
       widget.content,
       widget.title,
-      maxQuestions: 5,
+      maxQuestions: widget.maxQuestions,
     );
 
     if (questions.isEmpty) {
