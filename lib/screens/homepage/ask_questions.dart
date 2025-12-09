@@ -15,9 +15,9 @@ class AskQuestionsPopup {
 
     bool isListening = false;
 
-    // Load saved notes dynamically (mobile or web)
-    Future<List<String>> loadSavedNotesText() async {
-      final List<String> results = [];
+    // ✅ Load saved notes dynamically (works on Web & Mobile)
+    Future<List<Map<String, dynamic>>> loadSavedNotes() async {
+      final List<Map<String, dynamic>> notes = [];
 
       if (kIsWeb) {
         try {
@@ -27,27 +27,26 @@ class AskQuestionsPopup {
             final decoded = jsonDecode(notesJson);
             if (decoded is List) {
               for (var note in decoded) {
-                if (note['content'] != null)
-                  results.add(note['content'].toString());
+                if (note['content'] != null) notes.add(note);
               }
             }
           }
         } catch (_) {}
-        return results;
+      } else {
+        final appDir = await getApplicationDocumentsDirectory();
+        final notesDir = Directory('${appDir.path}/saved_notes');
+        if (!await notesDir.exists()) return notes;
+
+        final files = notesDir.listSync().whereType<File>();
+        for (final f in files) {
+          try {
+            final data = jsonDecode(await f.readAsString());
+            if (data['content'] != null) notes.add(data);
+          } catch (_) {}
+        }
       }
 
-      final appDir = await getApplicationDocumentsDirectory();
-      final notesDir = Directory('${appDir.path}/saved_notes');
-      if (!await notesDir.exists()) return results;
-
-      final files = notesDir.listSync().whereType<File>();
-      for (final f in files) {
-        try {
-          final data = jsonDecode(await f.readAsString());
-          if (data['content'] != null) results.add(data['content'].toString());
-        } catch (_) {}
-      }
-      return results;
+      return notes;
     }
 
     // Extract keywords from user question
@@ -69,27 +68,32 @@ class AskQuestionsPopup {
         'you',
         'give',
         'show',
+        'read',
+        'document',
+        'note',
+        'notes',
       ];
       final words = question.toLowerCase().split(RegExp(r'\s+'));
       return words.where((w) => !stopWords.contains(w)).toList();
     }
 
-    // Search all notes and return best matching line/paragraph
-    Future<String?> searchNotes(List<String> keywords) async {
-      final notes = await loadSavedNotesText();
+    // Search notes and return best matching content
+    Future<String?> searchNotes(String question) async {
+      final notes = await loadSavedNotes();
       if (notes.isEmpty) return null;
 
+      final keywords = extractKeywords(question);
       String? bestMatch;
       int highestScore = 0;
 
-      for (final noteContent in notes) {
-        final lines = noteContent.split(RegExp(r'[\n\r•\-\d]+\s*'));
+      for (final note in notes) {
+        final content = note['content']?.toString() ?? '';
+        final lines = content.split(RegExp(r'[\n\r•\-\d]+\s*'));
         for (final line in lines) {
           if (line.trim().isEmpty) continue;
-          final lcLine = line.toLowerCase();
           int score = 0;
           for (final kw in keywords) {
-            if (lcLine.contains(kw)) score++;
+            if (line.toLowerCase().contains(kw)) score++;
           }
           if (score > highestScore) {
             highestScore = score;
@@ -97,28 +101,26 @@ class AskQuestionsPopup {
           }
         }
       }
+
       return bestMatch;
     }
 
-    // Listen to user question
+    // Start listening
     Future<void> startListening() async {
       if (isListening) return;
       isListening = true;
 
-      // Request microphone permission
+      // Mic permission
       final status = await Permission.microphone.status;
       if (!status.isGranted) {
         final result = await Permission.microphone.request();
         if (!result.isGranted) {
-          await tts.speak(
-            "Microphone permission is required to ask questions.",
-          );
+          await tts.speak("Microphone permission is required.");
           isListening = false;
           return;
         }
       }
 
-      // Initialize speech
       final available = await speech.initialize(
         onError: (err) => print("Speech error: $err"),
         onStatus: (status) => print("Speech status: $status"),
@@ -135,7 +137,7 @@ class AskQuestionsPopup {
       String heard = "";
       bool done = false;
 
-      // Timeout in case no speech is detected
+      // Timeout
       Future.delayed(const Duration(seconds: 15), () async {
         if (!done) {
           await speech.stop();
@@ -144,7 +146,6 @@ class AskQuestionsPopup {
         }
       });
 
-      // Start listening
       await speech.listen(
         onResult: (result) async {
           heard = result.recognizedWords;
@@ -158,8 +159,7 @@ class AskQuestionsPopup {
               return;
             }
 
-            final keywords = extractKeywords(heard);
-            final found = await searchNotes(keywords);
+            final found = await searchNotes(heard);
 
             if (found == null) {
               await tts.speak(
@@ -170,6 +170,7 @@ class AskQuestionsPopup {
               await tts.speakAndWait(found);
               await tts.speak("That's the answer to your question.");
             }
+
             isListening = false;
           }
         },

@@ -66,7 +66,7 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
         final prefs = await SharedPreferences.getInstance();
         final notesKey = 'openear_saved_notes';
         final notesJson = prefs.getString(notesKey);
-        
+
         if (notesJson != null && notesJson.isNotEmpty) {
           final decoded = jsonDecode(notesJson);
           if (decoded is List) {
@@ -214,6 +214,9 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
       return;
     }
 
+    // -----------------------------
+    // Web & Mobile search unified
+    // -----------------------------
     Map<String, dynamic>? found;
     for (final n in _notes) {
       final title = (n['title'] ?? '').toString();
