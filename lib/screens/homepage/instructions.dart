@@ -288,31 +288,7 @@ That’s it! You’re now ready to start learning with OpenEar. Would you like t
                 ],
               ),
               const SizedBox(height: 12),
-              // Floating mic using the existing widget for users to manually trigger voice commands
-              // Larger mic control for easy tapping
-              Align(
-                alignment: Alignment.bottomRight,
-                child: Semantics(
-                  button: true,
-                  label: 'Voice command microphone',
-                  child: SizedBox(
-                    width: 90,
-                    height: 90,
-                    child: VoiceCommandButton(
-                      speak: (text) async {
-                        await _tts.speak(text);
-                      },
-                      onCommandRecognized: (command) {
-                        if (command == 'read_notes') _openReadNotes();
-                        if (command == 'start_quiz') _openStartQuiz();
-                        if (command == 'progress') _openProgress();
-                        if (command == 'upload_notes') _openUploadNotes();
-                        if (command == 'ask_questions') AskQuestionsPopup.show(context);
-                      },
-                    ),
-                  ),
-                ),
-              ),
+              
             ],
           ),
         ),

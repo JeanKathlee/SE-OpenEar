@@ -622,46 +622,99 @@ class _UploadNotesState extends State<UploadNotes> {
 
   // -------------- Voice flow start (dialog kept similar but improved) ---------------
   Future<void> _startVoiceFlow() async {
-    if (kIsWeb) {
-      await _tts.speak('Voice navigation is only available on mobile. Please use manual upload.');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Voice navigation is only available on mobile devices')));
-      }
-      return;
+  if (kIsWeb) {
+    await _tts.speak('Voice navigation is only available on mobile. Please use manual upload.');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Voice navigation is only available on mobile devices')),
+      );
     }
+    return;
+  }
 
-    final micGranted = await _requestMicPermission();
-    if (!micGranted) {
-      await _tts.speak('Microphone permission is required.');
-      return;
-    }
+  final micGranted = await _requestMicPermission();
+  if (!micGranted) return;
 
-    final available = await _speech.initialize(
-      onStatus: (status) => debugPrint('Speech status: $status'),
-      onError: (errorNotification) => debugPrint('Speech error: ${errorNotification.errorMsg}'),
-    );
+  final available = await _speech.initialize(
+    onStatus: (status) => debugPrint('Speech status: $status'),
+    onError: (error) => debugPrint('Speech error: ${error.errorMsg}'),
+  );
 
-    if (!available) {
-      await _tts.speak('Speech recognition not available');
-      return;
-    }
+  if (!available) {
+    await _tts.speak('Speech recognition not available');
+    return;
+  }
 
-    _lastWords = '';
-    setState(() => _listening = true);
+  _lastWords = '';
+  setState(() => _listening = true);
 
-    _speech.listen(
-      onResult: (result) {
-        if (result.finalResult) {
-          setState(() {
-            _lastWords = result.recognizedWords;
-          });
-          debugPrint('Heard final: $_lastWords');
-        }
-      },
-      localeId: 'en_US',
-      partialResults: true,
-      onDevice: false,
-    );
+  await showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => StatefulBuilder(
+      builder: (context, setStateDialog) => AlertDialog(
+        backgroundColor: Colors.black87,
+        title: const Text('Voice Navigate', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Say part of the file name after pressing "Start Listening", then press "Stop".',
+              style: TextStyle(color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            _lastWords.isEmpty
+                ? const Icon(Icons.mic, size: 48, color: Colors.greenAccent)
+                : Text('Heard: "${_lastWords}"', style: const TextStyle(color: Colors.yellowAccent)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _speech.listen(
+                onResult: (result) {
+                  setStateDialog(() {
+                    _lastWords = result.recognizedWords;
+                  });
+                },
+                localeId: 'en_US',
+                partialResults: true,
+              );
+            },
+            child: const Text('Start Listening'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _speech.stop();
+              setState(() => _listening = false);
+              Navigator.of(context).pop();
+
+              if (_lastWords.trim().isEmpty) {
+                await _tts.speak("No spoken input detected.");
+              } else {
+                await _pickFileWithDirs(_lastWords);
+              }
+            },
+            child: const Text('Stop'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _speech.stop();
+              setState(() => _listening = false);
+              Navigator.of(context).pop();
+              await _tts.speak("Okay, cancelled.");
+            },
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  setState(() => _listening = false);
+}
+  Future<void> _startVoiceFlowOld() async {
 
     if (!mounted) return;
 
@@ -783,47 +836,6 @@ class _UploadNotesState extends State<UploadNotes> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
-                        foregroundColor: Colors.white,
-                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        minimumSize: const Size(120, 50),
-                      ),
-                      onPressed: () async {
-                        await _tts.stop();
-                        setState(() => _isPaused = false);
-                      },
-                      icon: const Icon(Icons.stop, size: 24),
-                      label: const Text('Stop'),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orangeAccent,
-                        foregroundColor: Colors.white,
-                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        minimumSize: const Size(120, 50),
-                      ),
-                      onPressed: () async {
-                        if (_isPaused) {
-                          await _tts.speak(_lastSpokenText);
-                          setState(() => _isPaused = false);
-                        } else {
-                          await _tts.pause();
-                          setState(() => _isPaused = true);
-                        }
-                      },
-                      icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause, size: 24),
-                      label: Text(_isPaused ? 'Resume' : 'Pause'),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
