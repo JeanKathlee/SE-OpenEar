@@ -12,12 +12,11 @@ class AskQuestionsPopup {
   static Future<void> show(BuildContext context) async {
     final TtsService tts = TtsService();
     final stt.SpeechToText speech = stt.SpeechToText();
-
     bool isListening = false;
 
-    // ✅ Load saved notes dynamically (works on Web & Mobile)
-    Future<List<Map<String, dynamic>>> loadSavedNotes() async {
-      final List<Map<String, dynamic>> notes = [];
+    /// Load saved notes dynamically (web/mobile)
+    Future<List<String>> loadSavedNotesText() async {
+      final List<String> results = [];
 
       if (kIsWeb) {
         try {
@@ -27,29 +26,43 @@ class AskQuestionsPopup {
             final decoded = jsonDecode(notesJson);
             if (decoded is List) {
               for (var note in decoded) {
-                if (note['content'] != null) notes.add(note);
+                if (note['content'] != null)
+                  results.add(note['content'].toString());
               }
             }
           }
-        } catch (_) {}
-      } else {
+        } catch (e) {
+          print("Web load error: $e");
+        }
+        return results;
+      }
+
+      // Mobile
+      try {
         final appDir = await getApplicationDocumentsDirectory();
         final notesDir = Directory('${appDir.path}/saved_notes');
-        if (!await notesDir.exists()) return notes;
+        if (!await notesDir.exists()) return results;
 
         final files = notesDir.listSync().whereType<File>();
         for (final f in files) {
           try {
-            final data = jsonDecode(await f.readAsString());
-            if (data['content'] != null) notes.add(data);
-          } catch (_) {}
+            final content = await f.readAsString();
+            final data = jsonDecode(content);
+            if (data is Map<String, dynamic> && data['content'] != null) {
+              results.add(data['content'].toString());
+            }
+          } catch (e) {
+            print("Error reading file ${f.path}: $e");
+          }
         }
+      } catch (e) {
+        print("Mobile load error: $e");
       }
 
-      return notes;
+      return results;
     }
 
-    // Extract keywords from user question
+    /// Extract keywords from user question
     List<String> extractKeywords(String question) {
       final stopWords = [
         'what',
@@ -68,32 +81,27 @@ class AskQuestionsPopup {
         'you',
         'give',
         'show',
-        'read',
-        'document',
-        'note',
-        'notes',
       ];
       final words = question.toLowerCase().split(RegExp(r'\s+'));
       return words.where((w) => !stopWords.contains(w)).toList();
     }
 
-    // Search notes and return best matching content
-    Future<String?> searchNotes(String question) async {
-      final notes = await loadSavedNotes();
+    /// Search all notes and return best matching line/paragraph
+    Future<String?> searchNotes(List<String> keywords) async {
+      final notes = await loadSavedNotesText();
       if (notes.isEmpty) return null;
 
-      final keywords = extractKeywords(question);
       String? bestMatch;
       int highestScore = 0;
 
-      for (final note in notes) {
-        final content = note['content']?.toString() ?? '';
-        final lines = content.split(RegExp(r'[\n\r•\-\d]+\s*'));
+      for (final noteContent in notes) {
+        final lines = noteContent.split(RegExp(r'[\n\r•\-\d]+\s*'));
         for (final line in lines) {
           if (line.trim().isEmpty) continue;
+          final lcLine = line.toLowerCase();
           int score = 0;
           for (final kw in keywords) {
-            if (line.toLowerCase().contains(kw)) score++;
+            if (lcLine.contains(kw)) score++;
           }
           if (score > highestScore) {
             highestScore = score;
@@ -101,26 +109,28 @@ class AskQuestionsPopup {
           }
         }
       }
-
       return bestMatch;
     }
 
-    // Start listening
+    /// Listen to user question
     Future<void> startListening() async {
       if (isListening) return;
       isListening = true;
 
-      // Mic permission
+      // Request microphone permission
       final status = await Permission.microphone.status;
       if (!status.isGranted) {
         final result = await Permission.microphone.request();
         if (!result.isGranted) {
-          await tts.speak("Microphone permission is required.");
+          await tts.speak(
+            "Microphone permission is required to ask questions.",
+          );
           isListening = false;
           return;
         }
       }
 
+      // Initialize speech
       final available = await speech.initialize(
         onError: (err) => print("Speech error: $err"),
         onStatus: (status) => print("Speech status: $status"),
@@ -137,7 +147,7 @@ class AskQuestionsPopup {
       String heard = "";
       bool done = false;
 
-      // Timeout
+      // Timeout if no speech detected
       Future.delayed(const Duration(seconds: 15), () async {
         if (!done) {
           await speech.stop();
@@ -146,6 +156,7 @@ class AskQuestionsPopup {
         }
       });
 
+      // Start listening
       await speech.listen(
         onResult: (result) async {
           heard = result.recognizedWords;
@@ -153,24 +164,25 @@ class AskQuestionsPopup {
             done = true;
             await speech.stop();
 
-            if (heard.isEmpty) {
+            if (heard.trim().isEmpty) {
               await tts.speak("I did not hear anything. Please try again.");
               isListening = false;
               return;
             }
 
-            final found = await searchNotes(heard);
+            final keywords = extractKeywords(heard);
+            final found = await searchNotes(keywords);
 
             if (found == null) {
               await tts.speak(
                 "I cannot find anything related to your question in your notes.",
               );
             } else {
+              // ✅ Web & Mobile flow fixed
               await tts.speak("Here is what I found:");
               await tts.speakAndWait(found);
               await tts.speak("That's the answer to your question.");
             }
-
             isListening = false;
           }
         },
