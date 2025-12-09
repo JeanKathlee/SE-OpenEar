@@ -6,11 +6,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '/services/TTS_services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class AskQuestionsPopup {
   static Future<void> show(BuildContext context) async {
     final TtsService tts = TtsService();
     final stt.SpeechToText speech = stt.SpeechToText();
+
+    bool isListening = false;
 
     // Load saved notes dynamically (mobile or web)
     Future<List<String>> loadSavedNotesText() async {
@@ -80,7 +83,6 @@ class AskQuestionsPopup {
       int highestScore = 0;
 
       for (final noteContent in notes) {
-        // Split by sentence, bullet, number, or newline
         final lines = noteContent.split(RegExp(r'[\n\r•\-\d]+\s*'));
         for (final line in lines) {
           if (line.trim().isEmpty) continue;
@@ -100,44 +102,81 @@ class AskQuestionsPopup {
 
     // Listen to user question
     Future<void> startListening() async {
-      final available = await speech.initialize();
+      if (isListening) return;
+      isListening = true;
+
+      // Request microphone permission
+      final status = await Permission.microphone.status;
+      if (!status.isGranted) {
+        final result = await Permission.microphone.request();
+        if (!result.isGranted) {
+          await tts.speak(
+            "Microphone permission is required to ask questions.",
+          );
+          isListening = false;
+          return;
+        }
+      }
+
+      // Initialize speech
+      final available = await speech.initialize(
+        onError: (err) => print("Speech error: $err"),
+        onStatus: (status) => print("Speech status: $status"),
+      );
       if (!available) {
-        await tts.speak("Speech recognition is not available.");
+        await tts.speak("Speech recognition is not available on this device.");
+        isListening = false;
         return;
       }
 
-      String heard = "";
       await tts.stop();
       await tts.speakAndWait("Listening. Please ask your question.");
 
-      speech.listen(
-        onResult: (result) {
+      String heard = "";
+      bool done = false;
+
+      // Timeout in case no speech is detected
+      Future.delayed(const Duration(seconds: 15), () async {
+        if (!done) {
+          await speech.stop();
+          await tts.speak("I did not hear anything. Please try again.");
+          isListening = false;
+        }
+      });
+
+      // Start listening
+      await speech.listen(
+        onResult: (result) async {
           heard = result.recognizedWords;
+          if (result.finalResult && !done) {
+            done = true;
+            await speech.stop();
+
+            if (heard.isEmpty) {
+              await tts.speak("I did not hear anything. Please try again.");
+              isListening = false;
+              return;
+            }
+
+            final keywords = extractKeywords(heard);
+            final found = await searchNotes(keywords);
+
+            if (found == null) {
+              await tts.speak(
+                "I cannot find anything related to your question in your notes.",
+              );
+            } else {
+              await tts.speak("Here is what I found:");
+              await tts.speakAndWait(found);
+              await tts.speak("That's the answer to your question.");
+            }
+            isListening = false;
+          }
         },
         localeId: 'en_US',
+        listenFor: const Duration(seconds: 15),
+        pauseFor: const Duration(seconds: 2),
       );
-
-      // Auto stop after 5 seconds
-      await Future.delayed(const Duration(seconds: 5));
-      await speech.stop();
-
-      if (heard.isEmpty) {
-        await tts.speak("I did not hear anything. Please try again.");
-        return;
-      }
-
-      final keywords = extractKeywords(heard);
-      final found = await searchNotes(keywords);
-
-      if (found == null) {
-        await tts.speak(
-          "I cannot find anything related to your question in your notes.",
-        );
-      } else {
-        await tts.speak("Here is what I found:");
-        await tts.speakAndWait(found);
-        await tts.speak("That's the answer to your question.");
-      }
     }
 
     // Entry TTS
