@@ -49,7 +49,9 @@ class AskQuestionsPopup {
             final content = await f.readAsString();
             final data = jsonDecode(content);
             if (data is Map<String, dynamic> && data['content'] != null) {
-              results.add(data['content'].toString());
+              final text = data['content'].toString();
+              print("Loaded note: $text"); // 🔹 Debug print
+              results.add(text);
             }
           } catch (e) {
             print("Error reading file ${f.path}: $e");
@@ -160,6 +162,7 @@ class AskQuestionsPopup {
       await speech.listen(
         onResult: (result) async {
           heard = result.recognizedWords;
+          print("STT Result: $heard"); // 🔹 Debug print
           if (result.finalResult && !done) {
             done = true;
             await speech.stop();
@@ -173,12 +176,11 @@ class AskQuestionsPopup {
             final keywords = extractKeywords(heard);
             final found = await searchNotes(keywords);
 
-            if (found == null) {
+            if (found == null || found.trim().isEmpty) {
               await tts.speak(
                 "I cannot find anything related to your question in your notes.",
               );
             } else {
-              // ✅ Web & Mobile flow fixed
               await tts.speak("Here is what I found:");
               await tts.speakAndWait(found);
               await tts.speak("That's the answer to your question.");
@@ -186,6 +188,7 @@ class AskQuestionsPopup {
             isListening = false;
           }
         },
+        partialResults: true, // 🔹 Optional for mobile STT reliability
         localeId: 'en_US',
         listenFor: const Duration(seconds: 15),
         pauseFor: const Duration(seconds: 2),
