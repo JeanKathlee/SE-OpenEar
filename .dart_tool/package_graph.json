@@ -20,6 +20,7 @@
         "permission_handler",
         "shared_preferences",
         "speech_to_text",
+        "string_similarity",
         "syncfusion_flutter_pdf"
       ],
       "devDependencies": [
@@ -51,6 +52,11 @@
         "test_api",
         "vector_math"
       ]
+    },
+    {
+      "name": "string_similarity",
+      "version": "2.1.1",
+      "dependencies": []
     },
     {
       "name": "cloud_firestore",

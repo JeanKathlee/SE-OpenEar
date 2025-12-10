@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '/screens/homepage/read_notes.dart';
-import '/screens/homepage/ask_questions.dart';
 import '/screens/homepage/start_quiz_screen.dart';
 import '/screens/homepage/progress.dart';
 import '/screens/homepage/upload_notes.dart';
@@ -72,15 +71,18 @@ class _HomePageState extends State<HomePage> with RouteAware {
       await Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const ReadNotesScreen()),
-      );
+      ).then((_) async {
+        // After returning from ReadNotesScreen, optionally resume voice tutorial
+        // or leave empty if no action needed
+      });
     });
   }
 
-  void _onAskQuestion() {
-    _navigateOnce(() async {
-      await AskQuestionsPopup.show(context);
-    });
-  }
+  // void _onAskQuestion() {
+  //_navigateOnce(() async {
+  // await AskQuestionsPopup.show(context);
+  // });
+  //}
 
   void _onStartQuiz() {
     _navigateOnce(() async {
@@ -186,12 +188,12 @@ class _HomePageState extends State<HomePage> with RouteAware {
                   color: Colors.teal.shade700,
                 ),
                 const SizedBox(height: 12),
-                _buildActionButton(
+                /* _buildActionButton(
                   label: 'Ask Question',
                   icon: Icons.mic,
                   onPressed: _onAskQuestion,
                   color: Colors.deepPurple,
-                ),
+                ),*/
                 const SizedBox(height: 12),
                 _buildActionButton(
                   label: 'Start Quiz',
@@ -220,9 +222,9 @@ class _HomePageState extends State<HomePage> with RouteAware {
                       case 'read_notes':
                         _onReadNotes();
                         break;
-                      case 'ask_questions':
+                      /* case 'ask_questions':
                         _onAskQuestion();
-                        break;
+                        break;*/
                       case 'start_quiz':
                         _onStartQuiz();
                         break;

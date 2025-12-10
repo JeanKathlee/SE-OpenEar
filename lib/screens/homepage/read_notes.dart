@@ -7,12 +7,22 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:shared_preferences/shared_preferences.dart';
-
-// ✅ Shared TTS service
 import '/services/TTS_services.dart';
 
 class ReadNotesScreen extends StatefulWidget {
-  const ReadNotesScreen({super.key});
+  const ReadNotesScreen({super.key, this.openAskQuestions = false});
+
+  final bool openAskQuestions;
+
+  /// Helper to directly show Ask Questions from anywhere
+  static Future<void> showAskQuestions(BuildContext context) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ReadNotesScreen(openAskQuestions: true),
+      ),
+    );
+  }
 
   @override
   State<ReadNotesScreen> createState() => _ReadNotesScreenState();
@@ -34,6 +44,11 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _announce();
       _loadSavedNotes();
+
+      // Open Ask Questions if requested
+      if (widget.openAskQuestions) {
+        _showAskQuestions();
+      }
     });
   }
 
@@ -62,28 +77,20 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
       List<Map<String, dynamic>> loaded = [];
 
       if (kIsWeb) {
-        // Web: read from SharedPreferences (localStorage on web)
         final prefs = await SharedPreferences.getInstance();
-        final notesKey = 'openear_saved_notes';
-        final notesJson = prefs.getString(notesKey);
+        final notesJson = prefs.getString('openear_saved_notes');
 
         if (notesJson != null && notesJson.isNotEmpty) {
           final decoded = jsonDecode(notesJson);
-          if (decoded is List) {
-            loaded = decoded.cast<Map<String, dynamic>>();
-          }
+          if (decoded is List) loaded = decoded.cast<Map<String, dynamic>>();
         }
       } else {
-        // Mobile: read from file system
         final appDir = await getApplicationDocumentsDirectory();
         final notesDir = Directory('${appDir.path}/saved_notes');
 
-        if (!await notesDir.exists()) {
-          await notesDir.create(recursive: true);
-        }
+        if (!await notesDir.exists()) await notesDir.create(recursive: true);
 
         final files = notesDir.listSync().whereType<File>().toList();
-
         for (final f in files) {
           try {
             final content = await f.readAsString();
@@ -94,6 +101,7 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
         }
       }
 
+      // Remove duplicates by title
       final Map<String, Map<String, dynamic>> uniqueByTitle = {};
       for (final m in loaded) {
         final titleKey = (m['title'] ?? 'untitled')
@@ -214,9 +222,6 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
       return;
     }
 
-    // -----------------------------
-    // Web & Mobile search unified
-    // -----------------------------
     Map<String, dynamic>? found;
     for (final n in _notes) {
       final title = (n['title'] ?? '').toString();
@@ -246,9 +251,261 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
       await Future.delayed(const Duration(milliseconds: 150));
     } catch (_) {}
 
-    if (mounted) {
-      Navigator.of(context).pop();
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  // ----------------------
+  // Ask Questions Logic
+  // ----------------------
+  Future<void> _showAskQuestions() async {
+    final stt.SpeechToText speech = stt.SpeechToText();
+    bool isListening = false;
+    bool isSpeaking = false;
+    bool stopRequested = false;
+
+    Future<List<String>> loadSavedNotesText() async {
+      final List<String> results = [];
+      if (kIsWeb) {
+        final prefs = await SharedPreferences.getInstance();
+        final notesJson = prefs.getString('openear_saved_notes');
+        if (notesJson != null && notesJson.isNotEmpty) {
+          final decoded = jsonDecode(notesJson);
+          if (decoded is List) {
+            for (var note in decoded) {
+              if (note['content'] != null)
+                results.add(note['content'].toString());
+            }
+          }
+        }
+        return results;
+      }
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final notesDir = Directory('${appDir.path}/saved_notes');
+      if (!await notesDir.exists()) return results;
+
+      for (final f in notesDir.listSync().whereType<File>()) {
+        try {
+          final content = await f.readAsString();
+          final data = jsonDecode(content);
+          if (data is Map<String, dynamic> && data['content'] != null) {
+            results.add(data['content'].toString());
+          }
+        } catch (_) {}
+      }
+      return results;
     }
+
+    List<String> extractKeywords(String question) {
+      final stopWords = [
+        'what',
+        'is',
+        'are',
+        'the',
+        'explain',
+        'define',
+        'meaning',
+        'of',
+        'tell',
+        'me',
+        'about',
+        'please',
+        'can',
+        'you',
+        'give',
+        'show',
+      ];
+      final words = question.toLowerCase().split(RegExp(r'\s+'));
+      return words.where((w) => !stopWords.contains(w)).toList();
+    }
+
+    Future<String?> searchNotes(
+      List<String> keywords,
+      String fullQuestion,
+    ) async {
+      final notes = await loadSavedNotesText();
+      if (notes.isEmpty || keywords.isEmpty) return null;
+
+      String? bestMatch;
+      double highestScore = 0.0;
+
+      for (final noteContent in notes) {
+        final lines = noteContent.split(RegExp(r'[\n\r•\-\d]+\s*'));
+        for (final line in lines) {
+          if (line.trim().isEmpty) continue;
+          final lcLine = line.toLowerCase();
+
+          int exactMatches = 0;
+          for (final kw in keywords) {
+            if (RegExp(r'\b' + RegExp.escape(kw) + r'\b').hasMatch(lcLine))
+              exactMatches++;
+          }
+
+          double score = exactMatches / keywords.length;
+          final questionWords = fullQuestion.toLowerCase().split(
+            RegExp(r'\s+'),
+          );
+          int commonWords = 0;
+          for (final qw in questionWords) {
+            if (lcLine.contains(qw)) commonWords++;
+          }
+          double questionScore = commonWords / questionWords.length;
+          score += 0.3 * questionScore;
+
+          if (score > highestScore) {
+            highestScore = score;
+            bestMatch = line.trim();
+          }
+        }
+      }
+
+      return highestScore >= 0.6 ? bestMatch : null;
+    }
+
+    Future<void> startListening() async {
+      if (isListening) return;
+      isListening = true;
+      stopRequested = false;
+      String heard = '';
+      bool finalReceived = false;
+
+      if (speech.isListening) await speech.stop();
+
+      final status = await Permission.microphone.request();
+      if (status != PermissionStatus.granted) {
+        await tts.speak("Microphone permission is required to ask questions.");
+        isListening = false;
+        return;
+      }
+
+      final available = await speech.initialize();
+      if (!available) {
+        await tts.speak("Speech recognition is not available on this device.");
+        isListening = false;
+        return;
+      }
+
+      await tts.stop();
+      await tts.speakAndWait("Listening. Ask your question.");
+
+      speech.listen(
+        onResult: (result) async {
+          heard = result.recognizedWords;
+          if (!result.finalResult || finalReceived || stopRequested) return;
+
+          finalReceived = true;
+          await speech.stop();
+
+          if (heard.trim().isEmpty) {
+            await tts.speak("I did not hear anything. Please try again.");
+            isListening = false;
+            return;
+          }
+
+          final keywords = extractKeywords(heard);
+          final found = await searchNotes(keywords, heard);
+
+          if (stopRequested) {
+            isListening = false;
+            return;
+          }
+
+          isSpeaking = true;
+          await tts.stop();
+
+          String response = (found == null || found.isEmpty)
+              ? "I cannot find anything related to your question in your notes."
+              : "Here is what I found: $found. That's the answer to your question.";
+
+          await tts.speakAndWait(response);
+          isSpeaking = false;
+          isListening = false;
+        },
+        partialResults: true,
+        localeId: 'en_US',
+        listenFor: const Duration(seconds: 45),
+        pauseFor: const Duration(seconds: 3),
+      );
+    }
+
+    await tts.stop();
+    await tts.speakAndWait("You are now in Ask Questions mode.");
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          insetPadding: const EdgeInsets.all(20),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Ask a Question",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 15),
+                const Text(
+                  "Tap the mic and ask your question. You can ask multiple questions without closing.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.black),
+                ),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: startListening,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.blueAccent,
+                    ),
+                    child: const Icon(Icons.mic, color: Colors.white, size: 40),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                TextButton(
+                  onPressed: () async {
+                    stopRequested = true;
+                    isSpeaking = false;
+                    isListening = false;
+                    await tts.stop();
+                    if (speech.isListening) await speech.stop();
+                  },
+                  child: const Text(
+                    "Stop",
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: () async {
+                    stopRequested = true;
+                    isSpeaking = false;
+                    isListening = false;
+                    await tts.stop();
+                    if (speech.isListening) await speech.stop();
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  child: const Text(
+                    "Close",
+                    style: TextStyle(color: Colors.black),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -285,38 +542,72 @@ class _ReadNotesScreenState extends State<ReadNotesScreen> {
                     textAlign: TextAlign.center,
                   ),
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _notes.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final note = _notes[index];
-                    final title = (note['title'] ?? 'Untitled').toString();
-                    return Card(
-                      color: Colors.teal.shade600,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 3,
-                      child: ListTile(
-                        title: Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            color: Colors.white,
-                          ),
-                        ),
-                        trailing: const Icon(
-                          Icons.volume_up,
-                          color: Colors.white,
-                        ),
-                        onTap: () async {
-                          await tts.speakAndWait('Playing $title');
-                          await _speakNote(note);
+              : Column(
+                  children: [
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _notes.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final note = _notes[index];
+                          final title = (note['title'] ?? 'Untitled')
+                              .toString();
+                          return Card(
+                            color: Colors.teal.shade600,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 3,
+                            child: ListTile(
+                              title: Text(
+                                title,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  color: Color.fromARGB(255, 255, 255, 255),
+                                ),
+                              ),
+                              trailing: const Icon(
+                                Icons.volume_up,
+                                color: Color.fromARGB(255, 255, 254, 254),
+                              ),
+                              onTap: () async {
+                                await tts.speakAndWait('Playing $title');
+                                await _speakNote(note);
+                              },
+                            ),
+                          );
                         },
                       ),
-                    );
-                  },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: ElevatedButton.icon(
+                        onPressed: _showAskQuestions,
+                        icon: const Icon(Icons.question_answer),
+                        label: const Text("Ask a Question"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color.fromARGB(
+                            255,
+                            223,
+                            222,
+                            224,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                            horizontal: 20,
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
         ),
         floatingActionButton: FloatingActionButton(

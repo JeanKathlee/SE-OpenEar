@@ -5,7 +5,6 @@ import 'read_notes.dart';
 import 'start_quiz.dart';
 import 'progress.dart';
 import 'upload_notes.dart';
-import 'ask_questions.dart';
 import '../../widgets/voice_command_button.dart';
 import '../../services/voice_recognition_service.dart';
 
@@ -23,7 +22,8 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
   List<String> _chunks = [];
   int _currentChunkIndex = 0;
 
-  final String _script = '''Welcome to OpenEar — your learning companion designed for visually impaired learners. This app helps you listen to study materials, ask questions by voice, take quizzes, upload notes, and track your progress — all through your voice.
+  final String _script =
+      '''Welcome to OpenEar — your learning companion designed for visually impaired learners. This app helps you listen to study materials, ask questions by voice, take quizzes, upload notes, and track your progress — all through your voice.
 
 Here’s how to use OpenEar. To get started, simply say one of the following commands: Read my notes — to listen to your study materials. Start a quiz — to begin a quiz session. Check my progress — to hear your saved quiz scores. Ask a question — to inquire about your study materials using your voice. Upload file or Upload notes — to add new study materials for reading. You can say Help anytime to hear these instructions again.
 
@@ -76,9 +76,12 @@ That’s it! You’re now ready to start learning with OpenEar. Would you like t
 
   void _prepareChunks() {
     // Normalize whitespace and split into sentence-like chunks for resumable playback
-    final normalized = _script.replaceAll('\n', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+    final normalized = _script
+        .replaceAll('\n', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
     // Split on sentence boundaries (., !, ?) followed by space
-  final parts = normalized.split(RegExp(r'(?<=[.!?])\s+'));
+    final parts = normalized.split(RegExp(r'(?<=[.!?])\s+'));
     _chunks = parts.map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
     if (_chunks.isEmpty) {
       _chunks.add(normalized);
@@ -90,7 +93,9 @@ That’s it! You’re now ready to start learning with OpenEar. Would you like t
     // Keep a light on-silence handler to give helpful prompts
     _voiceService.onSilenceDetected = () async {
       if (mounted && !_isPlaying) {
-        await _tts.speak("I'm still here. Say 'Read my notes', 'Start a quiz', or 'Skip' to continue.");
+        await _tts.speak(
+          "I'm still here. Say 'Read my notes', 'Start a quiz', or 'Skip' to continue.",
+        );
       }
     };
 
@@ -99,7 +104,9 @@ That’s it! You’re now ready to start learning with OpenEar. Would you like t
       final lower = recognizedWords.toLowerCase();
 
       // direct shortcuts first
-      if (lower.contains('skip') || lower.contains('go back') || lower.contains('exit')) {
+      if (lower.contains('skip') ||
+          lower.contains('go back') ||
+          lower.contains('exit')) {
         _navigateToHome();
         return;
       }
@@ -116,7 +123,7 @@ That’s it! You’re now ready to start learning with OpenEar. Would you like t
       } else if (command == 'upload_notes') {
         _openUploadNotes();
       } else if (command == 'ask_questions') {
-        AskQuestionsPopup.show(context);
+        _openReadNotes();
       }
     }, autoRestart: true);
   }
@@ -189,8 +196,8 @@ That’s it! You’re now ready to start learning with OpenEar. Would you like t
     await _stopSpeaking();
     await _voiceService.stopListening();
     if (!mounted) return;
-  await StartQuiz.show(context);
-  await _voiceService.startListening((words) {}, autoRestart: true);
+    await StartQuiz.show(context);
+    await _voiceService.startListening((words) {}, autoRestart: true);
   }
 
   void _openProgress() async {
@@ -253,17 +260,28 @@ That’s it! You’re now ready to start learning with OpenEar. Would you like t
                     label: _isPlaying ? 'flutorial' : 'Play tutorial',
                     child: ElevatedButton.icon(
                       onPressed: _isPlaying ? _stopSpeaking : _speakScript,
-                      icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow, size: 28),
+                      icon: Icon(
+                        _isPlaying ? Icons.stop : Icons.play_arrow,
+                        size: 28,
+                      ),
                       label: Text(
                         _isPlaying ? 'Stop Tutorial' : 'Play Tutorial',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
                         foregroundColor: Colors.white,
                         minimumSize: const Size(double.infinity, 72),
-                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 20,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         elevation: 4,
                       ),
                     ),
@@ -274,13 +292,21 @@ That’s it! You’re now ready to start learning with OpenEar. Would you like t
                     label: 'Skip tutorial and go to Home',
                     child: ElevatedButton(
                       onPressed: _navigateToHome,
-                      child: const Text('Skip', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                      child: const Text(
+                        'Skip',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent.withOpacity(0.8),
                         foregroundColor: Colors.white,
                         minimumSize: const Size(double.infinity, 72),
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         elevation: 2,
                       ),
                     ),
@@ -288,7 +314,6 @@ That’s it! You’re now ready to start learning with OpenEar. Would you like t
                 ],
               ),
               const SizedBox(height: 12),
-              
             ],
           ),
         ),

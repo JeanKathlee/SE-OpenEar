@@ -440,6 +440,12 @@
       "languageVersion": "3.1"
     },
     {
+      "name": "string_similarity",
+      "rootUri": "file:///Users/johncalen.nombrado/.pub-cache/hosted/pub.dev/string_similarity-2.1.1",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
       "name": "syncfusion_flutter_core",
       "rootUri": "file:///Users/johncalen.nombrado/.pub-cache/hosted/pub.dev/syncfusion_flutter_core-27.2.5",
       "packageUri": "lib/",
