@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "315703175462",
+    "project_id": "openear-app-3dd73",
+    "storage_bucket": "openear-app-3dd73.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:315703175462:android:5bc10ec12e88d9694779e7",
+        "android_client_info": {
+          "package_name": "com.example.openear"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC77lgkChAdKiff-YfHv87xczjUZJ1I0j0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
