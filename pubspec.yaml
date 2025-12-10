@@ -41,6 +41,11 @@ dependencies:
   # Date formatting for progress view
   intl: ^0.19.0
 
+  # Firebase
+  firebase_core: ^3.8.1
+  firebase_auth: ^5.3.3
+  cloud_firestore: ^5.5.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

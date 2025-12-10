@@ -1,12 +1,69 @@
 import 'package:flutter/material.dart';
 import 'welcome_screen.dart';
 import 'signup_screen.dart';
+import '/services/auth_service.dart';
 
-class LoginScreen extends StatelessWidget {
-  final TextEditingController usernameController = TextEditingController();
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
 
-  LoginScreen({super.key});
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter email and password'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final result = await _authService.signIn(
+      email: email,
+      password: password,
+    );
+
+    setState(() => _isLoading = false);
+
+    if (!mounted) return;
+
+    if (result['success']) {
+      final username = result['username'] ?? 'User';
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => WelcomeScreen(username: username),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,12 +113,13 @@ class LoginScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Username
+                // Email
                 TextField(
-                  controller: usernameController,
+                  controller: emailController,
                   style: const TextStyle(fontSize: 22, color: Colors.black),
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    labelText: 'Username',
+                    labelText: 'Email',
                     labelStyle: const TextStyle(
                       fontSize: 20,
                       color: Colors.black54,
@@ -108,35 +166,25 @@ class LoginScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    onPressed: () {
-                      final username = usernameController.text.trim();
-                      final password = passwordController.text.trim();
-
-                      if (username.isEmpty || password.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please enter username and password'),
+                    onPressed: _isLoading ? null : _handleLogin,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'LOGIN',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 2,
+                              color: Colors.white,
+                            ),
                           ),
-                        );
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                WelcomeScreen(username: username),
-                          ),
-                        );
-                      }
-                    },
-                    child: const Text(
-                      'LOGIN',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                        color: Colors.white,
-                      ),
-                    ),
                   ),
                 ),
 

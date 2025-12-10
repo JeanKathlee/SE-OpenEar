@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'welcome_screen.dart';
+import '/services/auth_service.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -12,26 +13,64 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
 
-  void _handleSignUp() {
+  @override
+  void dispose() {
+    usernameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSignUp() async {
     final username = usernameController.text.trim();
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
     if (username.isEmpty || email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all fields')),
+      );
       return;
     }
 
-    // You can later integrate Firebase or API signup logic here
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => WelcomeScreen(username: username),
-      ),
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 6 characters')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final result = await _authService.signUp(
+      username: username,
+      email: email,
+      password: password,
     );
+
+    setState(() => _isLoading = false);
+
+    if (!mounted) return;
+
+    if (result['success']) {
+      final username = result['username'] ?? 'User';
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => WelcomeScreen(username: username),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -105,6 +144,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 // Email
                 TextField(
                   controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(fontSize: 20, color: Colors.black),
                   decoration: InputDecoration(
                     labelText: 'Email',
@@ -153,16 +193,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    onPressed: _handleSignUp,
-                    child: const Text(
-                      'SIGN UP',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                        color: Colors.white,
-                      ),
-                    ),
+                    onPressed: _isLoading ? null : _handleSignUp,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'SIGN UP',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 2,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
 
