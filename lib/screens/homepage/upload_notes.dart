@@ -1,18 +1,18 @@
 // upload_notes.dart
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:archive/archive_io.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:archive/archive_io.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '/services/quiz_validator.dart';
-import 'dart:async';
 
 class UploadNotes extends StatefulWidget {
   const UploadNotes({super.key});
@@ -28,8 +28,6 @@ class _UploadNotesState extends State<UploadNotes> {
 
   bool _listening = false;
   String _lastWords = '';
-  String _lastSpokenText = '';
-  bool _isPaused = false;
   bool _isClosing = false;
 
   @override
@@ -52,14 +50,6 @@ class _UploadNotesState extends State<UploadNotes> {
     } catch (_) {}
   }
 
-  Future<void> _announceExit() async {
-    try {
-      await _tts.stop();
-      await Future.delayed(const Duration(milliseconds: 100));
-      await _tts.speak('Upload Notes screen closed.');
-    } catch (_) {}
-  }
-
   Future<bool> _onWillPop() async {
     if (_isClosing) return false;
     _isClosing = true;
@@ -73,7 +63,7 @@ class _UploadNotesState extends State<UploadNotes> {
   }
 
   // ---------------------------
-  // MANUAL FILE PICKER (web + mobile)
+  // MANUAL FILE PICKER
   // ---------------------------
   Future<void> _pickFile() async {
     try {
@@ -115,7 +105,9 @@ class _UploadNotesState extends State<UploadNotes> {
     }
   }
 
-  // Unified processors ----------------------------------------------------
+  // ---------------------------
+  // PROCESS FILES
+  // ---------------------------
   Future<void> _processFileBytes(String fileName, List<int> bytes) async {
     final extension = fileName.split('.').last.toLowerCase();
     final title = _friendlyTitleFromName(fileName);
@@ -185,9 +177,6 @@ class _UploadNotesState extends State<UploadNotes> {
     await _tts.speak("Upload successful. Go to Read Notes to listen to the file.");
   }
 
-  // ---------------------------
-  // PDF / DOCX extraction helpers
-  // ---------------------------
   String _extractTextFromPdfBytes(List<int> bytes) {
     try {
       final document = PdfDocument(inputBytes: bytes);
@@ -213,15 +202,11 @@ class _UploadNotesState extends State<UploadNotes> {
   Future<String?> _extractTextFromDocxBytes(List<int> bytes) async {
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
-
       final xmlFile = archive.firstWhere(
         (f) => f.name.toLowerCase().contains('word/document.xml'),
         orElse: () => throw Exception('document.xml not found'),
       );
-
       final xmlContent = utf8.decode(xmlFile.content as List<int>);
-
-      // improved extraction: grab text nodes rather than bluntly removing tags
       final reg = RegExp(r'>([^<>]+)<');
       final matches = reg.allMatches(xmlContent);
       final buffer = StringBuffer();
@@ -232,8 +217,7 @@ class _UploadNotesState extends State<UploadNotes> {
           buffer.write(' ');
         }
       }
-      final text = buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
-      return text;
+      return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
     } catch (e) {
       debugPrint('DOCX extract error: $e');
       return 'Could not extract DOCX text: $e';
@@ -253,15 +237,13 @@ class _UploadNotesState extends State<UploadNotes> {
   }
 
   // ---------------------------
-  // SAVE NOTE + INDEXING
+  // SAVE NOTE
   // ---------------------------
   Future<void> _saveNote(String title, String content) async {
     if (kIsWeb) {
-      // Web: use SharedPreferences
       try {
         final prefs = await SharedPreferences.getInstance();
         const notesKey = 'openear_saved_notes';
-
         final notesJson = prefs.getString(notesKey);
         List<Map<String, dynamic>> notes = [];
         if (notesJson != null && notesJson.isNotEmpty) {
@@ -269,7 +251,7 @@ class _UploadNotesState extends State<UploadNotes> {
           if (decoded is List) notes = decoded.cast<Map<String, dynamic>>();
         }
 
-        // duplicates by title (case-insensitive) or exact content
+        // duplicates
         for (final note in notes) {
           final existingTitle = (note['title'] ?? '').toString();
           final existingContent = (note['content'] ?? '').toString();
@@ -302,14 +284,12 @@ class _UploadNotesState extends State<UploadNotes> {
         }
       } catch (e) {
         debugPrint('Error saving note to web storage: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving note: $e')));
-        }
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving note: $e')));
       }
       return;
     }
 
-    // Mobile: filesystem + index.json
+    // Mobile: filesystem
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final notesDir = Directory('${appDir.path}${Platform.pathSeparator}saved_notes');
@@ -350,7 +330,6 @@ class _UploadNotesState extends State<UploadNotes> {
       };
       await file.writeAsString(jsonEncode(map));
 
-      // add to index (store filename and metadata)
       index.add({
         'title': title,
         'file': filename,
@@ -369,7 +348,7 @@ class _UploadNotesState extends State<UploadNotes> {
   }
 
   // ---------------------------
-  // Speech helpers + permission
+  // SPEECH HELPERS
   // ---------------------------
   Future<bool> _requestMicPermission() async {
     final status = await Permission.microphone.request();
@@ -381,99 +360,100 @@ class _UploadNotesState extends State<UploadNotes> {
   }
 
   // ---------------------------
-  // VOICE SEARCH
+  // VOICE NAVIGATION
   // ---------------------------
+  Future<void> _startVoiceFlow() async {
+    if (kIsWeb) {
+      await _tts.speak('Voice navigation is only available on mobile. Please use manual upload.');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Voice navigation is only available on mobile devices')),
+      );
+      return;
+    }
 
-  /// Convert filename to a spoken-friendly alias.
-  /// Example: "IMG_0023-final_v2.docx" -> "image twenty three final version two"
-  String _generateSpokenAlias(String filename) {
-    // remove extension
-    var base = filename.replaceAll(RegExp(r'\.\w+$'), '');
-    // replace separators with spaces
-    base = base.replaceAll(RegExp(r'[_\-]+'), ' ');
-    // expand common tokens
-    base = base.replaceAll(RegExp(r'\bfinal\b', caseSensitive: false), 'final');
-    base = base.replaceAll(RegExp(r'\bvers?ion\b', caseSensitive: false), 'version');
+    final micGranted = await _requestMicPermission();
+    if (!micGranted) return;
 
-    // replace digits sequences with words (simple conversion)
-    base = base.replaceAllMapped(RegExp(r'\d+'), (m) {
-      final numStr = m.group(0) ?? '';
-      final numWord = _numberToWords(int.tryParse(numStr) ?? 0);
-      return numWord;
-    });
+    final available = await _speech.initialize(
+      onStatus: (status) => debugPrint('Speech status: $status'),
+      onError: (error) => debugPrint('Speech error: ${error.errorMsg}'),
+    );
 
-    // cleanup spacing
-    base = base.replaceAll(RegExp(r'\s+'), ' ').trim();
-    return base.toLowerCase();
+    if (!available) {
+      await _tts.speak('Speech recognition not available');
+      return;
+    }
+
+    _lastWords = '';
+    setState(() => _listening = true);
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          backgroundColor: Colors.black87,
+          title: const Text('Voice Navigate', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Say part of the file name after pressing "Start Listening", then press "Stop".',
+                style: TextStyle(color: Colors.white),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              _lastWords.isEmpty
+                  ? const Icon(Icons.mic, size: 48, color: Colors.greenAccent)
+                  : Text('Heard: "${_lastWords}"', style: const TextStyle(color: Colors.yellowAccent)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                _speech.listen(
+                  onResult: (result) {
+                    setStateDialog(() {
+                      _lastWords = result.recognizedWords;
+                    });
+                  },
+                  localeId: 'en_US',
+                  partialResults: true,
+                );
+              },
+              child: const Text('Start Listening'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await _speech.stop();
+                setState(() => _listening = false);
+                Navigator.of(context).pop();
+
+                if (_lastWords.trim().isEmpty) {
+                  await _tts.speak("No spoken input detected.");
+                } else {
+                  await _pickFileWithDirs(_lastWords);
+                }
+              },
+              child: const Text('Stop'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await _speech.stop();
+                setState(() => _listening = false);
+                Navigator.of(context).pop();
+                await _tts.speak("Okay, cancelled.");
+              },
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    setState(() => _listening = false);
   }
 
-  // small number-to-words for common file numbers (0-9999)
-  String _numberToWords(int n) {
-    if (n == 0) return 'zero';
-    final units = [
-      '', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
-      'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
-      'seventeen', 'eighteen', 'nineteen'
-    ];
-    final tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
-
-    String words = '';
-    if (n >= 1000) {
-      final thousands = n ~/ 1000;
-      words += '${units[thousands]} thousand ';
-      n = n % 1000;
-    }
-    if (n >= 100) {
-      final hundreds = n ~/ 100;
-      words += '${units[hundreds]} hundred ';
-      n = n % 100;
-    }
-    if (n >= 20) {
-      final t = n ~/ 10;
-      words += '${tens[t]} ';
-      final u = n % 10;
-      if (u > 0) words += '${units[u]} ';
-    } else if (n > 0) {
-      words += '${units[n]} ';
-    }
-    return words.trim();
-  }
-
-  /// Levenshtein distance (for fuzzy matching)
-  int _levenshtein(String s, String t) {
-    if (s == t) return 0;
-    if (s.isEmpty) return t.length;
-    if (t.isEmpty) return s.length;
-
-    final v0 = List<int>.filled(t.length + 1, 0);
-    final v1 = List<int>.filled(t.length + 1, 0);
-
-    for (var i = 0; i <= t.length; i++) v0[i] = i;
-    for (var i = 0; i < s.length; i++) {
-      v1[0] = i + 1;
-      for (var j = 0; j < t.length; j++) {
-        final cost = s[i] == t[j] ? 0 : 1;
-        v1[j + 1] = [
-          v1[j] + 1,
-          v0[j + 1] + 1,
-          v0[j] + cost,
-        ].reduce((a, b) => a < b ? a : b);
-      }
-      for (var j = 0; j <= t.length; j++) v0[j] = v1[j];
-    }
-    return v1[t.length];
-  }
-
-  double _similarity(String a, String b) {
-    a = a.toLowerCase().trim();
-    b = b.toLowerCase().trim();
-    if (a.isEmpty || b.isEmpty) return 0.0;
-    final dist = _levenshtein(a, b);
-    final maxLen = a.length > b.length ? a.length : b.length;
-    return 1.0 - (dist / maxLen);
-  }
-
-  // Search user's downloads & documents and find best match
   Future<void> _pickFileWithDirs(String spoken) async {
     try {
       final storageStatus = await Permission.storage.request();
@@ -499,15 +479,18 @@ class _UploadNotesState extends State<UploadNotes> {
 
       List<_IndexedFile> indexed = [];
 
+      // Recursive search
       Future<void> searchDirectory(Directory dir) async {
         if (!await dir.exists()) return;
         try {
-          final entities = dir.listSync(recursive: true, followLinks: false);
-          for (final entity in entities) {
+          await for (final entity in dir.list(recursive: true, followLinks: false)) {
             if (entity is File) {
-              final rawName = entity.path.split('/').last;
-              final lowerName = rawName.toLowerCase();
+              final ext = entity.path.split('.').last.toLowerCase();
+              if (!['pdf', 'txt', 'docx'].contains(ext)) continue;
+
+              final rawName = entity.path.split(Platform.pathSeparator).last;
               final alias = _generateSpokenAlias(rawName);
+
               indexed.add(_IndexedFile(entity.path, rawName, alias));
             }
           }
@@ -516,326 +499,123 @@ class _UploadNotesState extends State<UploadNotes> {
         }
       }
 
-      for (final dir in dirs) {
-        await searchDirectory(dir);
-      }
+      for (final dir in dirs) await searchDirectory(dir);
 
       if (indexed.isEmpty) {
         await _tts.speak("No files found in downloads or documents.");
         return;
       }
 
-      // Compute best match across alias and filename
-      double bestScore = 0.0;
+      // Compute best match
       _IndexedFile? bestFile;
+      double bestScore = 0;
       for (final f in indexed) {
-        // score alias vs spoken
         final aliasScore = _similarity(spoken, f.alias);
-        final nameScore = _similarity(spoken, f.name.replaceAll(RegExp(r'\.\w+$'), '').replaceAll(RegExp(r'[_\-]+'), ' '));
-        final combined = (aliasScore * 0.7) + (nameScore * 0.3);
-        if (combined > bestScore) {
-          bestScore = combined;
+        final nameScore = _similarity(
+          spoken,
+          f.name.replaceAll(RegExp(r'\.\w+$'), '').replaceAll(RegExp(r'[_\-]'), ' '),
+        );
+        final score = aliasScore > nameScore ? aliasScore : nameScore;
+        if (score > bestScore) {
+          bestScore = score;
           bestFile = f;
         }
       }
 
-      // also accept simple substring if similarity is low
-      if (bestScore < 0.45) {
-        final substringMatches = indexed.where((f) => f.name.toLowerCase().contains(spoken)).toList();
-        if (substringMatches.isNotEmpty) {
-          bestFile = substringMatches.first;
-          bestScore = 0.5;
-        }
-      }
-
-      if (bestFile == null || bestScore < 0.35) {
-        await _tts.speak("No matching file found in your downloads or documents.");
+      if (bestFile == null || bestScore < 0.2) {
+        await _tts.speak("No file sufficiently matches your spoken input.");
         return;
       }
 
-      // Confirm with user
-      final fileName = bestFile.name;
-      final aliasShown = bestFile.alias;
-      await _tts.speak("Found file ${fileName}. Did you mean $aliasShown? Say yes to open or no to cancel.");
-
-      final confirmed = await _listenForYesNo();
-      if (!confirmed) {
-        await _tts.speak("Okay, cancelled.");
-        return;
-      }
-
-      await _tts.speak("Opening $fileName.");
+      await _tts.speak("Opening file ${bestFile.name} now.");
       await _processFilePath(bestFile.path);
+
     } catch (e) {
-      debugPrint('⚠️ Voice search error: $e');
-      await _tts.speak("Sorry, I could not open that file.");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('File search error: $e')));
-      }
+      debugPrint('Error in voice file picker: $e');
+      await _tts.speak("There was an error searching for files.");
     }
   }
 
-  Future<bool> _listenForYesNo({int timeoutSeconds = 5}) async {
-    try {
-      final available = await _speech.initialize(
-        onStatus: (s) => debugPrint('yesno status: $s'),
-        onError: (e) => debugPrint('yesno error: ${e.errorMsg}'),
-      );
-      if (!available) return false;
-
-      String heard = '';
-      final completer = Completer<bool>();
-
-      _speech.listen(
-        onResult: (result) {
-          if (result.finalResult) {
-            heard = result.recognizedWords.toLowerCase();
-            if (heard.contains('yes') || heard.contains('yeah') || heard.contains('yup') || heard.contains('confirm') || heard.contains('open')) {
-              if (!completer.isCompleted) completer.complete(true);
-            } else if (heard.contains('no') || heard.contains('cancel') || heard.contains('stop')) {
-              if (!completer.isCompleted) completer.complete(false);
-            }
-          }
-        },
-        listenFor: Duration(seconds: timeoutSeconds),
-        localeId: 'en_US',
-        partialResults: false,
-        onDevice: false,
-      );
-
-      // fallback if nothing recognized
-      Future.delayed(Duration(seconds: timeoutSeconds + 1), () {
-        if (!completer.isCompleted) completer.complete(false);
-      });
-
-      final confirmed = await completer.future;
-      await _speech.stop();
-      return confirmed;
-    } catch (e) {
-      debugPrint('Error listening for yes/no: $e');
-      try {
-        await _speech.stop();
-      } catch (_) {}
-      return false;
-    }
+  String _generateSpokenAlias(String filename) {
+    return filename
+      .replaceAll(RegExp(r'\.\w+$'), '') // remove extension
+      .replaceAll(RegExp(r'[_\-\s]+'), '') // remove spaces, underscores, dashes
+      .toLowerCase()
+      .trim();
   }
 
-  // -------------- Voice flow start (dialog kept similar but improved) ---------------
-  Future<void> _startVoiceFlow() async {
-  if (kIsWeb) {
-    await _tts.speak('Voice navigation is only available on mobile. Please use manual upload.');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voice navigation is only available on mobile devices')),
-      );
-    }
-    return;
+  double _similarity(String a, String b) {
+     final aChars = a.split('').toSet();
+     final bChars = b.split('').toSet();
+     final intersect = aChars.intersection(bChars).length;
+     final union = aChars.union(bChars).length;
+     return union == 0 ? 0.0 : intersect / union;
   }
 
-  final micGranted = await _requestMicPermission();
-  if (!micGranted) return;
-
-  final available = await _speech.initialize(
-    onStatus: (status) => debugPrint('Speech status: $status'),
-    onError: (error) => debugPrint('Speech error: ${error.errorMsg}'),
-  );
-
-  if (!available) {
-    await _tts.speak('Speech recognition not available');
-    return;
-  }
-
-  _lastWords = '';
-  setState(() => _listening = true);
-
-  await showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => StatefulBuilder(
-      builder: (context, setStateDialog) => AlertDialog(
-        backgroundColor: Colors.black87,
-        title: const Text('Voice Navigate', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Say part of the file name after pressing "Start Listening", then press "Stop".',
-              style: TextStyle(color: Colors.white),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            _lastWords.isEmpty
-                ? const Icon(Icons.mic, size: 48, color: Colors.greenAccent)
-                : Text('Heard: "${_lastWords}"', style: const TextStyle(color: Colors.yellowAccent)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              _speech.listen(
-                onResult: (result) {
-                  setStateDialog(() {
-                    _lastWords = result.recognizedWords;
-                  });
-                },
-                localeId: 'en_US',
-                partialResults: true,
-              );
-            },
-            child: const Text('Start Listening'),
-          ),
-          TextButton(
-            onPressed: () async {
-              await _speech.stop();
-              setState(() => _listening = false);
-              Navigator.of(context).pop();
-
-              if (_lastWords.trim().isEmpty) {
-                await _tts.speak("No spoken input detected.");
-              } else {
-                await _pickFileWithDirs(_lastWords);
-              }
-            },
-            child: const Text('Stop'),
-          ),
-          TextButton(
-            onPressed: () async {
-              await _speech.stop();
-              setState(() => _listening = false);
-              Navigator.of(context).pop();
-              await _tts.speak("Okay, cancelled.");
-            },
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  setState(() => _listening = false);
-}
-  Future<void> _startVoiceFlowOld() async {
-
-    if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          backgroundColor: Colors.black87,
-          title: const Text('Voice Navigate', style: TextStyle(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Say part of the file name, then press Stop.', style: TextStyle(color: Colors.white), textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              _lastWords.isEmpty
-                  ? const Icon(Icons.mic, size: 48, color: Colors.greenAccent)
-                  : Text('Heard: "${_lastWords}"', style: const TextStyle(color: Colors.yellowAccent)),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                await _speech.stop();
-                setState(() {
-                  _listening = false;
-                });
-                Navigator.of(context).pop();
-                if (_lastWords.trim().isEmpty) {
-                  await _tts.speak("No spoken input detected.");
-                } else {
-                  await _pickFileWithDirs(_lastWords);
-                }
-              },
-              child: const Text('Stop'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await _speech.stop();
-                setState(() => _listening = false);
-                Navigator.of(context).pop();
-                await _tts.speak("Okay, cancelled.");
-              },
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ---------------------------
-  // Small utility / cleanup
-  // ---------------------------
   @override
   void dispose() {
-    try {
-      _speech.stop();
-      _speech.cancel();
-    } catch (_) {}
+    _tts.stop();
+    _speech.stop();
     _spokenInputController.dispose();
     super.dispose();
   }
 
-  // ---------------------------
-  // UI
-  // ---------------------------
   @override
-  Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          title: const Text('Upload Notes', style: TextStyle(color: Colors.white)),
-          backgroundColor: Colors.deepPurpleAccent,
-          iconTheme: const IconThemeData(color: Colors.white),
-          leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _onWillPop),
-        ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                const Text('Upload notes manually or use voice to navigate to local files.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 20, color: Colors.black87, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 30),
-                SizedBox(
-                  width: double.infinity,
-                  height: 60,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurpleAccent,
-                      foregroundColor: Colors.white,
-                      textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: () => _pickFile(),
-                    icon: const Icon(Icons.upload_file, size: 28),
-                    label: const Text('Upload Manually'),
+Widget build(BuildContext context) {
+  return WillPopScope(
+    onWillPop: _onWillPop,
+    child: Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('Upload Notes', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.deepPurpleAccent,
+        iconTheme: const IconThemeData(color: Colors.white),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _onWillPop),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              const Text(
+                'Upload notes manually or use voice to navigate to local files.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 20, color: Colors.black87, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurpleAccent,
+                    foregroundColor: Colors.white,
+                    textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
+                  onPressed: _pickFile,
+                  icon: const Icon(Icons.upload_file, size: 28),
+                  label: const Text('Upload Manually'),
                 ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 60,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 4, 192, 101),
-                      foregroundColor: Colors.white,
-                      textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _startVoiceFlow,
-                    icon: const Icon(Icons.mic, size: 28),
-                    label: const Text('Use Voice to Navigate'),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color.fromARGB(255, 4, 192, 101),
+                    foregroundColor: Colors.white,
+                    textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
+                  onPressed: _startVoiceFlow,
+                  icon: const Icon(Icons.mic, size: 28),
+                  label: const Text('Use Voice to Navigate'),
                 ),
-                const SizedBox(height: 24),
+              ),
+              const SizedBox(height: 24),
               ],
             ),
           ),
@@ -845,11 +625,24 @@ class _UploadNotesState extends State<UploadNotes> {
   }
 }
 
-// Small helper class for indexed files
+// ---------------------------
+// HELPERS
+// ---------------------------
 class _IndexedFile {
   final String path;
-  final String name; // file name with extension
-  final String alias; // spoken alias
-
+  final String name;
+  final String alias;
   _IndexedFile(this.path, this.name, this.alias);
+}
+
+// ---------------------------
+// EXTENSIONS
+// ---------------------------
+extension IterableExtensions<E> on Iterable<E> {
+  E? firstWhereOrNull(bool Function(E element) test) {
+    for (final e in this) {
+      if (test(e)) return e;
+    }
+    return null;
+  }
 }
